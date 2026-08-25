@@ -10,6 +10,7 @@ export const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
 type Dict = Record<string, string>;
 
 const id: Dict = {
+  preview_cta: "👀 Cek dulu isi channel-nya sebelum lanjut!",
   choose_language: "Selamat datang! Silakan pilih bahasa:",
   language_set: "Bahasa diatur ke Bahasa Indonesia.",
   main_menu: "🌟 <b>Menu Utama</b>\n\nPilih opsi di bawah:",
@@ -55,6 +56,7 @@ const id: Dict = {
 };
 
 const en: Dict = {
+  preview_cta: "👀 Check out the channel before you continue!",
   choose_language: "Welcome! Please choose your language:",
   language_set: "Language set to English.",
   main_menu: "🌟 <b>Main Menu</b>\n\nChoose an option below:",
@@ -100,6 +102,7 @@ const en: Dict = {
 };
 
 const my: Dict = {
+  preview_cta: "👀 Lihat dulu saluran sebelum teruskan!",
   choose_language: "Selamat datang! Sila pilih bahasa anda:",
   language_set: "Bahasa ditetapkan ke Bahasa Melayu.",
   main_menu: "🌟 <b>Menu Utama</b>\n\nPilih pilihan di bawah:",
@@ -145,6 +148,7 @@ const my: Dict = {
 };
 
 const ar: Dict = {
+  preview_cta: "👀 اطّلع على القناة أولاً قبل المتابعة!",
   choose_language: "مرحباً! يرجى اختيار اللغة:",
   language_set: "تم تعيين اللغة إلى العربية.",
   main_menu: "🌟 <b>القائمة الرئيسية</b>\n\nاختر أحد الخيارات أدناه:",

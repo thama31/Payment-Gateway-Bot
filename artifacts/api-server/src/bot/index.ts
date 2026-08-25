@@ -165,9 +165,27 @@ function languageKeyboard(): InlineKeyboard {
 
 const PREVIEW_LINK = "https://t.me/+MIBl0i82ZMIyY2Rl";
 
+// Telegram inline-button labels don't support HTML/Markdown formatting,
+// so to make text look "bold" we swap regular letters/digits for their
+// Unicode Mathematical Sans-Bold equivalents.
+function toBoldUnicode(text: string): string {
+  const upperBase = 0x1d5d4; // 𝗔
+  const lowerBase = 0x1d5ee; // 𝗮
+  const digitBase = 0x1d7ec; // 𝟬
+  return [...text]
+    .map((ch) => {
+      const code = ch.codePointAt(0)!;
+      if (code >= 65 && code <= 90) return String.fromCodePoint(upperBase + (code - 65));
+      if (code >= 97 && code <= 122) return String.fromCodePoint(lowerBase + (code - 97));
+      if (code >= 48 && code <= 57) return String.fromCodePoint(digitBase + (code - 48));
+      return ch;
+    })
+    .join("");
+}
+
 function mainMenuKeyboard(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
-    .url("👁 Preview Channel", PREVIEW_LINK).row()
+    .url(`👁 ${toBoldUnicode("Preview Channel")} 🔥`, PREVIEW_LINK).row()
     .text(t(lang, "btn_plans"), "menu:plans").row()
     .text(t(lang, "btn_status"), "menu:status").row()
     .text(t(lang, "btn_help"), "menu:help").row()
@@ -220,11 +238,13 @@ bot.command("start", async (ctx) => {
     }
   }
 
-  const previewKb = new InlineKeyboard()
-    .url("👁 Preview Channel", PREVIEW_LINK).row();
-  LANGUAGES.forEach((l, i) => {
-    previewKb.text(`${l.flag} ${l.label}`, `lang:${l.code}`);
-    if (i % 2 === 1) previewKb.row();
+  const previewOnlyKb = new InlineKeyboard()
+    .url(`👁 ${toBoldUnicode("Preview Channel")} 🔥`, PREVIEW_LINK);
+
+  const previewCtaText = LANGUAGES.map((l) => `${l.flag} ${t(l.code, "preview_cta")}`).join("\n");
+
+  await ctx.reply(previewCtaText, {
+    reply_markup: previewOnlyKb,
   });
 
   await ctx.reply(
@@ -232,7 +252,7 @@ bot.command("start", async (ctx) => {
     {
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
-      reply_markup: previewKb,
+      reply_markup: languageKeyboard(),
     }
   );
 });
@@ -801,10 +821,32 @@ bot.command("syncsheet", async (ctx) => {
   );
 });
 
+function formatDateDMY(d: Date): string {
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = d.getUTCFullYear();
+  return `${dd}.${mm}.${yyyy}`;
+}
+
 bot.command("stats", async (ctx) => {
   if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
 
-  const totalUsers = await db.select({ c: sql<number>`count(*)::int` }).from(usersTable);
+  const ACTIVE_WINDOW_DAYS = 30;
+  const activeSince = new Date(Date.now() - ACTIVE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  const [totalUsers, recentlyActiveUsers, firstUser] = await Promise.all([
+    db.select({ c: sql<number>`count(*)::int` }).from(usersTable),
+    db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(usersTable)
+      .where(gt(usersTable.updatedAt, activeSince)),
+    db
+      .select({ createdAt: usersTable.createdAt })
+      .from(usersTable)
+      .orderBy(usersTable.createdAt)
+      .limit(1),
+  ]);
+
   const activeSubs = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(subscriptionsTable)
@@ -853,11 +895,19 @@ bot.command("stats", async (ctx) => {
         .join("\n")
     : "  <i>(none)</i>";
 
+  const botUsername = ctx.me?.username ? `@${ctx.me.username}` : "(unknown)";
+  const createdLabel = firstUser[0]?.createdAt ? formatDateDMY(firstUser[0].createdAt) : "—";
+
   await ctx.reply(
-    `📊 <b>Bot Stats</b>\n\n` +
-      `👥 Total users: <b>${totalUsers[0]?.c ?? 0}</b>\n` +
-      `✅ Active subscriptions: <b>${activeSubs[0]?.c ?? 0}</b>\n` +
-      `⏳ Pending payment proofs: <b>${pendingProofs[0]?.c ?? 0}</b>\n\n` +
+    `📊 <b>BOT STATISTICS</b>\n` +
+      `#statistics\n\n` +
+      `${botUsername}\n` +
+      `▪️Created: ${createdLabel}\n\n` +
+      `▪️Users: <b>${totalUsers[0]?.c ?? 0}</b>\n` +
+      `▫️Active (${ACTIVE_WINDOW_DAYS}d): <b>${recentlyActiveUsers[0]?.c ?? 0}</b>\n\n` +
+      `▪️Admins: <b>1</b>\n\n` +
+      `▪️Active subscriptions: <b>${activeSubs[0]?.c ?? 0}</b>\n` +
+      `▪️Pending payment proofs: <b>${pendingProofs[0]?.c ?? 0}</b>\n\n` +
       `<b>Active by plan:</b>\n${planLines}\n\n` +
       `<b>Recent pending proofs:</b>\n${pendingLines}`,
     { parse_mode: "HTML" }
