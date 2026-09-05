@@ -65,6 +65,12 @@ export const PAYMENT_METHODS: Record<Region, { id: string; label: string; detail
         "Send via PayPal (Friends & Family preferred):\n📌 <b>paypal.me/prtm31</b>\n🔗 https://paypal.me/prtm31",
     },
     {
+      id: "wise",
+      label: "Wise",
+      details:
+        "Send via Wise:\n📌 Wise tag: <b>@tangguhputrap1</b>\n🔗 https://wise.com/pay/me/tangguhputrap1",
+    },
+    {
       id: "crypto_trc20",
       label: "Crypto (USDT TRC-20)",
       details:
