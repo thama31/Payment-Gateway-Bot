@@ -68,7 +68,7 @@ export const PAYMENT_METHODS: Record<Region, { id: string; label: string; detail
       id: "wise",
       label: "Wise",
       details:
-        "Send via Wise:\n📌 Wise tag: <b>@tangguhputrap1</b>\n🔗 https://wise.com/pay/me/tangguhputrap1",
+        "Send via Wise:\n📌 Wise email: <b>prtm31@gmail.com</b>",
     },
     {
       id: "crypto_trc20",
