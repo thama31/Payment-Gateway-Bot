@@ -41,10 +41,10 @@ function langToRegion(lang: Lang): Region {
 }
 
 function bonusNote(lang: Lang): string {
-  if (lang === "id") return "\n\n🎁 <b>BONUS:</b> Dapet akses ke <b>2 channel</b> sekaligus!\n• Channel utama\n• Channel bonus eksklusif: <b>Shemale Lokal Indonesia</b> 🇮🇩";
-  if (lang === "my") return "\n\n🎁 <b>BONUS:</b> Dapatkan akses ke <b>2 saluran</b> sekaligus!\n• Saluran utama\n• Saluran bonus eksklusif: <b>Shemale Tempatan Indonesia</b> 🇮🇩";
-  if (lang === "ar") return "\n\n🎁 <b>مكافأة:</b> احصل على وصول إلى <b>قناتين</b>!\n• القناة الرئيسية\n• قناة المكافأة الحصرية: <b>Shemale المحلية الإندونيسية</b> 🇮🇩";
-  return "\n\n🎁 <b>BONUS:</b> Get access to <b>2 channels</b> at once!\n• Main channel\n• Exclusive bonus channel: <b>Indonesian Local Shemale</b> 🇮🇩";
+  if (lang === "id") return "\n\n🎁 <b>BONUS:</b> Dapet akses ke <b>2 channel</b> sekaligus!\n• Channel utama\n• Channel bonus eksklusif: <b>Lokal Indonesia</b> 🇮🇩";
+  if (lang === "my") return "\n\n🎁 <b>BONUS:</b> Dapatkan akses ke <b>2 saluran</b> sekaligus!\n• Saluran utama\n• Saluran bonus eksklusif: <b>Lokal Indonesia</b> 🇮🇩";
+  if (lang === "ar") return "\n\n🎁 <b>مكافأة:</b> احصل على وصول إلى <b>قناتين</b>!\n• القناة الرئيسية\n• قناة المكافأة الحصرية: <b> المحلية الإندونيسية</b> 🇮🇩";
+  return "\n\n🎁 <b>BONUS:</b> Get access to <b>2 channels</b> at once!\n• Main channel\n• Exclusive bonus channel: <b> Local Indonesia</b> 🇮🇩";
 }
 
 async function createBonusInviteLink(expiresAt: Date | null, proofId: number): Promise<string | null> {
