@@ -5,7 +5,8 @@ import { db, pool, usersTable, subscriptionsTable, paymentProofsTable } from "@w
 import { eq, and, desc, sql, gt, isNull, or } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { LANGUAGES, t, type Lang } from "./i18n";
-import { PLANS, PAYMENT_METHODS, findPlanById, type Region, type PlanKey } from "./plans";
+import { PLANS, PAYMENT_METHODS, findPlanById, type Region, type PlanKey, type Plan } from "./plans";
+import { createPaddleCheckout, isPaddleConfigured } from "./paddle";
 import { syncUsersToSheet, appendUserRow, syncSubscribersToSheet, syncPaymentsToSheet, appendSubscriberRow, appendPaymentRow } from "./sheets";
 
 interface SessionData {
@@ -63,6 +64,116 @@ async function createBonusInviteLink(expiresAt: Date | null, proofId: number): P
     return null;
   }
 }
+
+interface GrantSubscriptionResult {
+  startedAt: Date;
+  expiresAt: Date | null;
+  inviteLink: string;
+  bonusInviteLink: string | null;
+  planName: string;
+  userLang: Lang;
+}
+
+/**
+ * Activates a subscription for a user: inserts the subscription row,
+ * creates the (single-use) channel invite link(s), and notifies the user
+ * on Telegram. Shared by the manual admin-approve flow and the automatic
+ * Paddle webhook flow so both stay in sync.
+ */
+async function grantSubscriptionAccess(
+  telegramId: number,
+  plan: Plan,
+  refId: number | string
+): Promise<GrantSubscriptionResult> {
+  const userRow = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+  const userLang = (userRow[0]?.language as Lang) ?? "id";
+
+  const startedAt = new Date();
+  const expiresAt = plan.durationDays
+    ? new Date(startedAt.getTime() + plan.durationDays * 24 * 60 * 60 * 1000)
+    : null;
+
+  await db.insert(subscriptionsTable).values({
+    telegramId,
+    planId: plan.id,
+    region: plan.region,
+    status: "active",
+    startedAt,
+    expiresAt,
+  });
+
+  let inviteLink = "";
+  try {
+    const expireUnix = expiresAt
+      ? Math.floor(expiresAt.getTime() / 1000)
+      : Math.floor(Date.now() / 1000) + 86400 * 365 * 10;
+    const link = await bot.api.createChatInviteLink(channelIdParsed, {
+      member_limit: 1,
+      expire_date: expireUnix,
+      name: `Sub #${refId}`,
+    });
+    inviteLink = link.invite_link;
+  } catch (err) {
+    logger.error({ err }, "Failed to create invite link");
+    inviteLink = "(admin will send invite link manually)";
+  }
+
+  const planName =
+    plan.key === "weekly"
+      ? t(userLang, "plan_weekly")
+      : plan.key === "monthly"
+        ? t(userLang, "plan_monthly")
+        : t(userLang, "plan_permanent");
+
+  try {
+    if (expiresAt) {
+      await bot.api.sendMessage(
+        telegramId,
+        t(userLang, "approved_user", {
+          plan: planName,
+          expires: expiresAt.toISOString().slice(0, 16).replace("T", " "),
+          invite: inviteLink,
+        }),
+        { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
+      );
+    } else {
+      await bot.api.sendMessage(
+        telegramId,
+        t(userLang, "approved_user_permanent", { plan: planName, invite: inviteLink }),
+        { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to notify approved user");
+  }
+
+  let bonusInviteLink: string | null = null;
+  if (isBonusEligible(plan.key)) {
+    bonusInviteLink = await createBonusInviteLink(expiresAt, typeof refId === "number" ? refId : 0);
+    if (bonusInviteLink) {
+      try {
+        const bonusMsg =
+          userLang === "id"
+            ? `🎁 <b>Bonus channel akses!</b>\n\nKamu juga dapet akses ke channel bonus karena upgrade ke plan ${planName}:\n\n🔗 ${bonusInviteLink}\n\n<i>Link ini single-use & akan expired bareng subscription kamu.</i>`
+            : userLang === "my"
+              ? `🎁 <b>Akses saluran bonus!</b>\n\nAnda juga mendapat akses ke saluran bonus kerana menaik taraf ke pakej ${planName}:\n\n🔗 ${bonusInviteLink}\n\n<i>Pautan ini satu kali guna & akan tamat bersama langganan anda.</i>`
+              : userLang === "ar"
+                ? `🎁 <b>قناة المكافأة!</b>\n\nلقد حصلت على وصول إلى قناة المكافأة لأنك ترقيت إلى خطة ${planName}:\n\n🔗 ${bonusInviteLink}\n\n<i>هذا الرابط للاستخدام مرة واحدة وسينتهي مع اشتراكك.</i>`
+                : `🎁 <b>Bonus channel access!</b>\n\nYou also get access to the bonus channel for upgrading to the ${planName} plan:\n\n🔗 ${bonusInviteLink}\n\n<i>This link is single-use and will expire with your subscription.</i>`;
+        await bot.api.sendMessage(telegramId, bonusMsg, {
+          parse_mode: "HTML",
+          link_preview_options: { is_disabled: true },
+        });
+      } catch (err) {
+        logger.error({ err }, "Failed to send bonus invite to user");
+      }
+    }
+  }
+
+  return { startedAt, expiresAt, inviteLink, bonusInviteLink, planName, userLang };
+}
+
+export { grantSubscriptionAccess };
 
 class PostgresSessionStorage implements StorageAdapter<SessionData> {
   async read(key: string): Promise<SessionData | undefined> {
@@ -371,6 +482,33 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
   const method = PAYMENT_METHODS[plan.region].find((m) => m.id === methodId);
   if (!method) return ctx.answerCallbackQuery("Invalid method");
   await ctx.answerCallbackQuery();
+
+  if (methodId === "paddle") {
+    if (!ctx.from) return;
+    if (!isPaddleConfigured()) {
+      await ctx.reply("⚠️ Paddle isn't configured yet. Please choose another payment method.");
+      return;
+    }
+    const checkoutUrl = await createPaddleCheckout(plan, ctx.from.id);
+    if (!checkoutUrl) {
+      await ctx.reply(
+        "⚠️ Couldn't create a Paddle checkout right now. Please try again in a moment, or choose another payment method."
+      );
+      return;
+    }
+    await ctx.editMessageText(
+      `💳 <b>Pay with Paddle</b>\n\n${planLabel(lang, plan.key)} — ${plan.price}\n\nTap the button below to pay securely (card, PayPal, and more, depending on what's enabled on your account).\n\n✅ Your subscription and invite link are sent <b>automatically</b> right after payment — no need to send a proof screenshot.`,
+      {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard()
+          .url("💳 Pay Now", checkoutUrl)
+          .row()
+          .text(t(lang, "btn_back"), "menu:main"),
+      }
+    );
+    return;
+  }
+
   ctx.session.awaitingProofFor = { planId, method: method.label };
   await ctx.editMessageText(
     t(lang, "payment_instruction", {
@@ -645,97 +783,18 @@ bot.callbackQuery(/^admin:(approve|reject):(\d+)$/, async (ctx) => {
 
   if (!plan) return ctx.answerCallbackQuery("Plan not found");
 
-  const startedAt = new Date();
-  const expiresAt = plan.durationDays
-    ? new Date(startedAt.getTime() + plan.durationDays * 24 * 60 * 60 * 1000)
-    : null;
-
-  await db.insert(subscriptionsTable).values({
-    telegramId: proof.telegramId,
-    planId: plan.id,
-    region: plan.region,
-    status: "active",
-    startedAt,
-    expiresAt,
-  });
   await db
     .update(paymentProofsTable)
     .set({ status: "approved", reviewedAt: new Date() })
     .where(eq(paymentProofsTable.id, proofId));
 
-  let inviteLink = "";
-  try {
-    const expireUnix = expiresAt
-      ? Math.floor(expiresAt.getTime() / 1000)
-      : Math.floor(Date.now() / 1000) + 86400 * 365 * 10;
-    const link = await bot.api.createChatInviteLink(channelIdParsed, {
-      member_limit: 1,
-      expire_date: expireUnix,
-      name: `Sub #${proof.id}`,
-    });
-    inviteLink = link.invite_link;
-  } catch (err) {
-    logger.error({ err }, "Failed to create invite link");
-    inviteLink = "(admin will send invite link manually)";
-  }
-
-  const planName =
-    plan.key === "weekly"
-      ? t(userLang, "plan_weekly")
-      : plan.key === "monthly"
-        ? t(userLang, "plan_monthly")
-        : t(userLang, "plan_permanent");
-
-  try {
-    if (expiresAt) {
-      await bot.api.sendMessage(
-        Number(proof.telegramId),
-        t(userLang, "approved_user", {
-          plan: planName,
-          expires: expiresAt.toISOString().slice(0, 16).replace("T", " "),
-          invite: inviteLink,
-        }),
-        { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
-      );
-    } else {
-      await bot.api.sendMessage(
-        Number(proof.telegramId),
-        t(userLang, "approved_user_permanent", { plan: planName, invite: inviteLink }),
-        { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
-      );
-    }
-  } catch (err) {
-    logger.error({ err }, "Failed to notify approved user");
-  }
-
-  let bonusInvite: string | null = null;
-  if (isBonusEligible(plan.key)) {
-    bonusInvite = await createBonusInviteLink(expiresAt, proof.id);
-    if (bonusInvite) {
-      try {
-        const bonusMsg =
-          userLang === "id"
-            ? `🎁 <b>Bonus channel akses!</b>\n\nKamu juga dapet akses ke channel bonus karena upgrade ke plan ${planName}:\n\n🔗 ${bonusInvite}\n\n<i>Link ini single-use & akan expired bareng subscription kamu.</i>`
-            : userLang === "my"
-              ? `🎁 <b>Akses saluran bonus!</b>\n\nAnda juga mendapat akses ke saluran bonus kerana menaik taraf ke pakej ${planName}:\n\n🔗 ${bonusInvite}\n\n<i>Pautan ini satu kali guna & akan tamat bersama langganan anda.</i>`
-              : userLang === "ar"
-                ? `🎁 <b>قناة المكافأة!</b>\n\nلقد حصلت على وصول إلى قناة المكافأة لأنك ترقيت إلى خطة ${planName} عبر QRIS:\n\n🔗 ${bonusInvite}\n\n<i>هذا الرابط للاستخدام مرة واحدة وسينتهي مع اشتراكك.</i>`
-                : `🎁 <b>Bonus channel access!</b>\n\nYou also get access to the bonus channel for upgrading to the ${planName} plan via QRIS:\n\n🔗 ${bonusInvite}\n\n<i>This link is single-use and will expire with your subscription.</i>`;
-        await bot.api.sendMessage(Number(proof.telegramId), bonusMsg, {
-          parse_mode: "HTML",
-          link_preview_options: { is_disabled: true },
-        });
-      } catch (err) {
-        logger.error({ err }, "Failed to send bonus invite to user");
-      }
-    }
-  }
+  const result = await grantSubscriptionAccess(Number(proof.telegramId), plan, proof.id);
 
   try { await ctx.answerCallbackQuery("Approved"); } catch (_) {}
-  const bonusLine = bonusInvite ? `\n🎁 Bonus: ${bonusInvite}` : "";
+  const bonusLine = result.bonusInviteLink ? `\n🎁 Bonus: ${result.bonusInviteLink}` : "";
   try {
     await ctx.editMessageCaption({
-      caption: (ctx.callbackQuery.message?.caption ?? "") + `\n\n✅ <b>APPROVED</b>\n🔗 ${inviteLink}${bonusLine}`,
+      caption: (ctx.callbackQuery.message?.caption ?? "") + `\n\n✅ <b>APPROVED</b>\n🔗 ${result.inviteLink}${bonusLine}`,
       parse_mode: "HTML",
     });
   } catch (_) {}
@@ -747,8 +806,8 @@ bot.callbackQuery(/^admin:(approve|reject):(\d+)$/, async (ctx) => {
     planId: plan.id,
     region: plan.region,
     status: "active",
-    startedAt,
-    expiresAt,
+    startedAt: result.startedAt,
+    expiresAt: result.expiresAt,
     method: proof.method,
   }).catch(() => {});
   appendPaymentRow({

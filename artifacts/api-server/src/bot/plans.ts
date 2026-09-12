@@ -59,10 +59,9 @@ export const PAYMENT_METHODS: Record<Region, { id: string; label: string; detail
   ],
   intl: [
     {
-      id: "paypal",
-      label: "PayPal",
-      details:
-        "Send via PayPal (Friends & Family preferred):\n📌 <b>paypal.me/prtm31</b>\n🔗 https://paypal.me/prtm31",
+      id: "paddle",
+      label: "💳 Card / PayPal (via Paddle)",
+      details: "",
     },
     {
       id: "wise",
