@@ -294,12 +294,32 @@ function toBoldUnicode(text: string): string {
     .join("");
 }
 
+const ADMIN_CONTACT_URL = "https://t.me/INNOMINATA666";
+
+function priceSuffix(lang: Lang, key: PlanKey): string {
+  if (key === "weekly") return t(lang, "price_suffix_weekly");
+  if (key === "monthly") return t(lang, "price_suffix_monthly");
+  return t(lang, "price_suffix_permanent");
+}
+
+function mainMenuText(lang: Lang, region: Region): string {
+  const keys: PlanKey[] = (region === "id" || region === "my")
+    ? ["permanent"]
+    : ["weekly", "monthly", "permanent"];
+  const bullets = keys
+    .map((k) => {
+      const p = PLANS[region][k];
+      return `• ${planLabel(lang, k).toUpperCase()} — ${p.price} ${priceSuffix(lang, k)}`;
+    })
+    .join("\n");
+  return t(lang, "main_menu", { bullets });
+}
+
 function mainMenuKeyboard(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
-    .url(`👁 ${toBoldUnicode("Preview Channel")} 🔥`, PREVIEW_LINK).row()
-    .text(t(lang, "btn_plans"), "menu:plans").row()
-    .text(t(lang, "btn_status"), "menu:status").row()
-    .text(t(lang, "btn_help"), "menu:help").row()
+    .text(t(lang, "btn_join"), "menu:plans").row()
+    .url(`👁 ${toBoldUnicode("Preview")} 🎬`, PREVIEW_LINK).row()
+    .url(t(lang, "btn_questions"), ADMIN_CONTACT_URL).row()
     .text(t(lang, "btn_language"), "menu:language");
 }
 
@@ -318,7 +338,7 @@ function plansKeyboard(lang: Lang, region: Region): InlineKeyboard {
     : ["weekly", "monthly", "permanent"];
   keys.forEach((k) => {
     const p = PLANS[region][k];
-    kb.text(`${planLabel(lang, k)} — ${p.price}`, `plan:${p.id}`).row();
+    kb.text(`${planLabel(lang, k).toUpperCase()} — ${p.price} ${priceSuffix(lang, k)}`, `plan:${p.id}`).row();
   });
   kb.text(t(lang, "btn_back"), "menu:plans:back");
   return kb;
@@ -370,10 +390,62 @@ bot.command("start", async (ctx) => {
 
 bot.command("menu", async (ctx) => {
   const lang = await getLang(ctx);
-  await ctx.reply(t(lang, "main_menu"), {
+  const region = langToRegion(lang);
+  await ctx.reply(mainMenuText(lang, region), {
     parse_mode: "HTML",
     reply_markup: mainMenuKeyboard(lang),
   });
+});
+
+bot.command("plans", async (ctx) => {
+  const lang = await getLang(ctx);
+  const region = langToRegion(lang);
+  await ctx.reply(t(lang, "plans_title"), {
+    parse_mode: "HTML",
+    reply_markup: plansKeyboard(lang, region),
+  });
+});
+
+bot.command("status", async (ctx) => {
+  const lang = await getLang(ctx);
+  if (!ctx.from) return;
+  const subs = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(and(eq(subscriptionsTable.telegramId, ctx.from.id), eq(subscriptionsTable.status, "active")))
+    .orderBy(desc(subscriptionsTable.startedAt))
+    .limit(1);
+  if (subs.length === 0) {
+    await ctx.reply(t(lang, "status_none"), { parse_mode: "HTML" });
+    return;
+  }
+  const sub = subs[0]!;
+  const plan = findPlanById(sub.planId);
+  const planName = plan ? planLabel(lang, plan.key) : sub.planId;
+  if (!sub.expiresAt) {
+    await ctx.reply(
+      t(lang, "status_permanent", { plan: planName, started: sub.startedAt.toISOString().slice(0, 10) }),
+      { parse_mode: "HTML" }
+    );
+    return;
+  }
+  if (sub.expiresAt < new Date()) {
+    await ctx.reply(t(lang, "status_expired"), { parse_mode: "HTML" });
+    return;
+  }
+  await ctx.reply(
+    t(lang, "status_active", {
+      plan: planName,
+      started: sub.startedAt.toISOString().slice(0, 10),
+      expires: sub.expiresAt.toISOString().slice(0, 16).replace("T", " "),
+    }),
+    { parse_mode: "HTML" }
+  );
+});
+
+bot.command("help", async (ctx) => {
+  const lang = await getLang(ctx);
+  await ctx.reply(t(lang, "help_text"), { parse_mode: "HTML" });
 });
 
 bot.callbackQuery(/^lang:(.+)$/, async (ctx) => {
@@ -388,7 +460,7 @@ bot.callbackQuery(/^lang:(.+)$/, async (ctx) => {
       set: { language: lang, region, updatedAt: new Date() },
     });
   await ctx.answerCallbackQuery(t(lang, "language_set"));
-  await ctx.editMessageText(t(lang, "main_menu"), {
+  await ctx.editMessageText(mainMenuText(lang, region), {
     parse_mode: "HTML",
     reply_markup: mainMenuKeyboard(lang),
   });
@@ -396,8 +468,9 @@ bot.callbackQuery(/^lang:(.+)$/, async (ctx) => {
 
 bot.callbackQuery("menu:main", async (ctx) => {
   const lang = await getLang(ctx);
+  const region = langToRegion(lang);
   await ctx.answerCallbackQuery();
-  const text = t(lang, "main_menu");
+  const text = mainMenuText(lang, region);
   const reply_markup = mainMenuKeyboard(lang);
   try {
     await ctx.editMessageText(text, {
@@ -429,8 +502,9 @@ bot.callbackQuery("menu:plans", async (ctx) => {
 
 bot.callbackQuery("menu:plans:back", async (ctx) => {
   const lang = await getLang(ctx);
+  const region = langToRegion(lang);
   await ctx.answerCallbackQuery();
-  await ctx.editMessageText(t(lang, "main_menu"), {
+  await ctx.editMessageText(mainMenuText(lang, region), {
     parse_mode: "HTML",
     reply_markup: mainMenuKeyboard(lang),
   });
@@ -497,13 +571,10 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
       return;
     }
     await ctx.editMessageText(
-      `💳 <b>Pay with Paddle</b>\n\n${planLabel(lang, plan.key)} — ${plan.price}\n\nTap the button below to pay securely (card, PayPal, and more, depending on what's enabled on your account).\n\n✅ Your subscription and invite link are sent <b>automatically</b> right after payment — no need to send a proof screenshot.`,
+      t(lang, "checkout_ready_paddle", { plan: planLabel(lang, plan.key), price: plan.price }),
       {
         parse_mode: "HTML",
-        reply_markup: new InlineKeyboard()
-          .url("💳 Pay Now", checkoutUrl)
-          .row()
-          .text(t(lang, "btn_back"), "menu:main"),
+        reply_markup: new InlineKeyboard().url(t(lang, "btn_open_payment"), checkoutUrl),
       }
     );
     return;
@@ -513,7 +584,6 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
   await ctx.editMessageText(
     t(lang, "payment_instruction", {
       method: method.label,
-      details: method.details,
       plan: planLabel(lang, plan.key),
       price: plan.price,
     }),
@@ -523,12 +593,14 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
     }
   );
 
+  const detailsText = t(lang, "payment_details", { details: method.details });
+
   if (methodId === "qris") {
     const qrisPath = path.resolve(__dirname, "../assets/qris.png");
     if (fs.existsSync(qrisPath)) {
       try {
         await ctx.replyWithPhoto(new InputFile(qrisPath), {
-          caption: `📱 <b>QRIS — ${plan.price}</b>\n\nScan kode di atas pakai aplikasi e-wallet/m-banking favorit kamu (GoPay, OVO, DANA, ShopeePay, BCA, Mandiri, dll).`,
+          caption: `📱 <b>QRIS — ${plan.price}</b>\n\n${detailsText}`,
           parse_mode: "HTML",
         });
       } catch (err) {
@@ -536,7 +608,9 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
       }
     } else {
       logger.warn({ qrisPath }, "QRIS image not found");
+      await ctx.reply(detailsText, { parse_mode: "HTML" });
     }
+    return;
   }
 
   if (methodId === "crypto_trc20") {
@@ -544,7 +618,7 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
     if (fs.existsSync(cryptoQrPath)) {
       try {
         await ctx.replyWithPhoto(new InputFile(cryptoQrPath), {
-          caption: `🔐 <b>USDT TRC-20 — ${plan.price}</b>\n\n<code>TQGa4Qj3cJ7TH32ronLS2MwMuFE9zmqtUz</code>\n\n⚠️ Make sure to use <b>TRC-20</b> network only. Sending on wrong network will result in permanent loss of funds.`,
+          caption: `🔐 <b>USDT TRC-20 — ${plan.price}</b>\n\n${detailsText}`,
           parse_mode: "HTML",
         });
       } catch (err) {
@@ -552,17 +626,13 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
       }
     } else {
       logger.warn({ cryptoQrPath }, "Crypto TRC-20 QR image not found");
+      await ctx.reply(detailsText, { parse_mode: "HTML" });
     }
+    return;
   }
 
-  await ctx.reply(
-    t(lang, "awaiting_proof", {
-      plan: planLabel(lang, plan.key),
-      price: plan.price,
-      method: method.label,
-    }),
-    { parse_mode: "HTML" }
-  );
+  // Manual methods with no QR image (e.g. Wise) — send full details as text.
+  await ctx.reply(detailsText, { parse_mode: "HTML" });
 });
 
 bot.callbackQuery("menu:status", async (ctx) => {

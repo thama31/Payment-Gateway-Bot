@@ -13,8 +13,11 @@ const id: Dict = {
   preview_cta: "👀 Cek dulu isi channel-nya sebelum lanjut!",
   choose_language: "Selamat datang! Silakan pilih bahasa:",
   language_set: "Bahasa diatur ke Bahasa Indonesia.",
-  main_menu: "🌟 <b>Menu Utama</b>\n\nPilih opsi di bawah:",
+  main_menu:
+    "🥳 <b>Selamat datang di Unlimited Fun!</b>\n\nJadi member dan kamu bakal dapet invite link!\n24/7 akses instant & support tersedia\n\n{bullets}",
   btn_plans: "💎 Paket Langganan",
+  btn_join: "JOIN 🔑",
+  btn_questions: "QUESTIONS 💬",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Dukungan",
   btn_language: "🌐 Ubah Bahasa",
@@ -26,13 +29,21 @@ const id: Dict = {
   plans_title: "💎 <b>Paket Langganan</b>\n\nPilih paket yang kamu mau:",
   plan_weekly: "Mingguan",
   plan_monthly: "Bulanan",
-  plan_permanent: "Permanen",
+  plan_permanent: "Lifetime",
+  price_suffix_weekly: "/ minggu",
+  price_suffix_monthly: "/ bulan",
+  price_suffix_permanent: "sekali bayar",
   plan_detail:
     "📦 <b>Paket {plan}</b>\n💰 Harga: <b>{price}</b>\n⏱ Durasi: <b>{duration}</b>\n\nPilih metode pembayaran:",
   duration_days: "{days} hari",
   duration_permanent: "Akses selamanya",
   payment_instruction:
-    "💳 <b>{method}</b>\n\n{details}\n\n📦 Paket: <b>{plan}</b>\n💰 Total: <b>{price}</b>\n\n📸 Setelah transfer, <b>kirim screenshot bukti transfer</b> ke chat ini. Admin akan verifikasi & aktifkan langganan kamu.",
+    "🧾 Ini checkout <b>{plan} — {price}</b> kamu via {method}.\n\nCek detail pembayaran di bawah 👇",
+  payment_details:
+    "{details}\n\n📸 Setelah transfer, <b>kirim screenshot bukti transfer</b> ke chat ini. Admin akan verifikasi & aktifkan langganan kamu.",
+  checkout_ready_paddle:
+    "🧾 Ini checkout <b>{plan} — {price}</b> kamu.\n\nSetelah pembayaran selesai, invite link kamu bakal otomatis masuk ke chat ini.",
+  btn_open_payment: "Open payment page →",
   awaiting_proof:
     "⏳ Silakan kirim <b>foto bukti pembayaran</b> sekarang untuk paket {plan} ({price}) via {method}.",
   proof_received:
@@ -59,8 +70,11 @@ const en: Dict = {
   preview_cta: "👀 Check out the channel before you continue!",
   choose_language: "Welcome! Please choose your language:",
   language_set: "Language set to English.",
-  main_menu: "🌟 <b>Main Menu</b>\n\nChoose an option below:",
+  main_menu:
+    "🥳 <b>Welcome to Unlimited Fun!</b>\n\nBecome a member and you'll receive an invite link!\n24/7 instant access & support available\n\n{bullets}",
   btn_plans: "💎 Subscription Plans",
+  btn_join: "JOIN 🔑",
+  btn_questions: "QUESTIONS 💬",
   btn_status: "📊 My Subscription",
   btn_help: "❓ Help & Support",
   btn_language: "🌐 Change Language",
@@ -72,13 +86,21 @@ const en: Dict = {
   plans_title: "💎 <b>Subscription Plans</b>\n\nPick the plan you want:",
   plan_weekly: "Weekly",
   plan_monthly: "Monthly",
-  plan_permanent: "Permanent",
+  plan_permanent: "Lifetime",
+  price_suffix_weekly: "/ week",
+  price_suffix_monthly: "/ month",
+  price_suffix_permanent: "one-time",
   plan_detail:
     "📦 <b>{plan} Plan</b>\n💰 Price: <b>{price}</b>\n⏱ Duration: <b>{duration}</b>\n\nChoose a payment method:",
   duration_days: "{days} days",
   duration_permanent: "Lifetime access",
   payment_instruction:
-    "💳 <b>{method}</b>\n\n{details}\n\n📦 Plan: <b>{plan}</b>\n💰 Total: <b>{price}</b>\n\n📸 After paying, <b>send a screenshot of the proof</b> to this chat. The admin will verify & activate your subscription.",
+    "🧾 Here's your <b>{plan} — {price}</b> checkout via {method}.\n\nCheck your payment details below 👇",
+  payment_details:
+    "{details}\n\n📸 After you've paid, <b>send a screenshot of your payment proof</b> to this chat. The admin will verify & activate your subscription.",
+  checkout_ready_paddle:
+    "🧾 Here's your <b>{plan} — {price}</b> checkout.\n\nOnce your payment is complete, your invite link will arrive in this chat.",
+  btn_open_payment: "Open payment page →",
   awaiting_proof:
     "⏳ Please send the <b>payment proof photo</b> now for {plan} plan ({price}) via {method}.",
   proof_received:
@@ -105,8 +127,11 @@ const my: Dict = {
   preview_cta: "👀 Lihat dulu saluran sebelum teruskan!",
   choose_language: "Selamat datang! Sila pilih bahasa anda:",
   language_set: "Bahasa ditetapkan ke Bahasa Melayu.",
-  main_menu: "🌟 <b>Menu Utama</b>\n\nPilih pilihan di bawah:",
+  main_menu:
+    "🥳 <b>Selamat datang ke Unlimited Fun!</b>\n\nJadi ahli dan anda akan terima pautan jemputan!\n24/7 akses segera & sokongan tersedia\n\n{bullets}",
   btn_plans: "💎 Pakej Langganan",
+  btn_join: "JOIN 🔑",
+  btn_questions: "QUESTIONS 💬",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Sokongan",
   btn_language: "🌐 Tukar Bahasa",
@@ -118,13 +143,21 @@ const my: Dict = {
   plans_title: "💎 <b>Pakej Langganan</b>\n\nPilih pakej yang anda mahu:",
   plan_weekly: "Mingguan",
   plan_monthly: "Bulanan",
-  plan_permanent: "Kekal",
+  plan_permanent: "Lifetime",
+  price_suffix_weekly: "/ minggu",
+  price_suffix_monthly: "/ bulan",
+  price_suffix_permanent: "sekali bayar",
   plan_detail:
     "📦 <b>Pakej {plan}</b>\n💰 Harga: <b>{price}</b>\n⏱ Tempoh: <b>{duration}</b>\n\nPilih kaedah pembayaran:",
   duration_days: "{days} hari",
   duration_permanent: "Akses seumur hidup",
   payment_instruction:
-    "💳 <b>{method}</b>\n\n{details}\n\n📦 Pakej: <b>{plan}</b>\n💰 Jumlah: <b>{price}</b>\n\n📸 Selepas bayar, <b>hantar tangkapan skrin bukti pembayaran</b> ke sembang ini. Admin akan mengesahkan & mengaktifkan langganan anda.",
+    "🧾 Ini checkout <b>{plan} — {price}</b> anda melalui {method}.\n\nSemak butiran pembayaran di bawah 👇",
+  payment_details:
+    "{details}\n\n📸 Selepas bayar, <b>hantar tangkapan skrin bukti pembayaran</b> ke sembang ini. Admin akan mengesahkan & mengaktifkan langganan anda.",
+  checkout_ready_paddle:
+    "🧾 Ini checkout <b>{plan} — {price}</b> anda.\n\nSelepas pembayaran selesai, pautan jemputan anda akan sampai secara automatik ke sembang ini.",
+  btn_open_payment: "Open payment page →",
   awaiting_proof:
     "⏳ Sila hantar <b>foto bukti pembayaran</b> sekarang untuk pakej {plan} ({price}) melalui {method}.",
   proof_received:
@@ -151,8 +184,11 @@ const ar: Dict = {
   preview_cta: "👀 اطّلع على القناة أولاً قبل المتابعة!",
   choose_language: "مرحباً! يرجى اختيار اللغة:",
   language_set: "تم تعيين اللغة إلى العربية.",
-  main_menu: "🌟 <b>القائمة الرئيسية</b>\n\nاختر أحد الخيارات أدناه:",
+  main_menu:
+    "🥳 <b>مرحباً بك في Unlimited Fun!</b>\n\nانضم كعضو وستحصل على رابط الدعوة!\nوصول ودعم فوري على مدار الساعة\n\n{bullets}",
   btn_plans: "💎 خطط الاشتراك",
+  btn_join: "JOIN 🔑",
+  btn_questions: "QUESTIONS 💬",
   btn_status: "📊 اشتراكي",
   btn_help: "❓ المساعدة والدعم",
   btn_language: "🌐 تغيير اللغة",
@@ -164,13 +200,21 @@ const ar: Dict = {
   plans_title: "💎 <b>خطط الاشتراك</b>\n\nاختر الخطة التي تريدها:",
   plan_weekly: "أسبوعي",
   plan_monthly: "شهري",
-  plan_permanent: "دائم",
+  plan_permanent: "مدى الحياة",
+  price_suffix_weekly: "/ أسبوع",
+  price_suffix_monthly: "/ شهر",
+  price_suffix_permanent: "دفعة واحدة",
   plan_detail:
     "📦 <b>خطة {plan}</b>\n💰 السعر: <b>{price}</b>\n⏱ المدة: <b>{duration}</b>\n\nاختر طريقة الدفع:",
   duration_days: "{days} يوم",
   duration_permanent: "وصول دائم",
   payment_instruction:
-    "💳 <b>{method}</b>\n\n{details}\n\n📦 الخطة: <b>{plan}</b>\n💰 المجموع: <b>{price}</b>\n\n📸 بعد الدفع، <b>أرسل لقطة شاشة لإثبات الدفع</b> في هذه المحادثة. سيقوم المسؤول بالتحقق وتفعيل اشتراكك.",
+    "🧾 إليك تفاصيل الدفع <b>{plan} — {price}</b> عبر {method}.\n\nتحقق من تفاصيل الدفع أدناه 👇",
+  payment_details:
+    "{details}\n\n📸 بعد الدفع، <b>أرسل لقطة شاشة لإثبات الدفع</b> في هذه المحادثة. سيقوم المسؤول بالتحقق وتفعيل اشتراكك.",
+  checkout_ready_paddle:
+    "🧾 إليك تفاصيل الدفع <b>{plan} — {price}</b>.\n\nبمجرد اكتمال دفعتك، سيصلك رابط الدعوة تلقائياً في هذه المحادثة.",
+  btn_open_payment: "Open payment page →",
   awaiting_proof:
     "⏳ يرجى إرسال <b>صورة إثبات الدفع</b> الآن لخطة {plan} ({price}) عبر {method}.",
   proof_received:
