@@ -8,6 +8,15 @@ const PADDLE_ENV = process.env["PADDLE_ENV"] === "sandbox" ? "sandbox" : "produc
 const PADDLE_API_BASE =
   PADDLE_ENV === "sandbox" ? "https://sandbox-api.paddle.com" : "https://api.paddle.com";
 
+// Our own hosted checkout page (see app.ts `/pay` route) that loads Paddle.js
+// and opens the overlay for a given transaction. We pass this explicitly so
+// checkout always lands here, regardless of the Paddle account's own
+// "default payment link" setting (which may point elsewhere, e.g. a
+// separate marketing site).
+const CHECKOUT_PAGE_URL = process.env["PUBLIC_BASE_URL"]
+  ? `${process.env["PUBLIC_BASE_URL"].replace(/\/$/, "")}/pay`
+  : "https://payment-gateway-bot.fly.dev/pay";
+
 // Map each plan key to its Paddle Price ID (set these in your Paddle dashboard
 // under Catalog > Products, then paste the Price IDs into env vars).
 const PADDLE_PRICE_IDS: Record<PlanKey, string | undefined> = {
@@ -48,6 +57,7 @@ export async function createPaddleCheckout(plan: Plan, telegramId: number): Prom
       },
       body: JSON.stringify({
         items: [{ price_id: priceId, quantity: 1 }],
+        checkout: { url: CHECKOUT_PAGE_URL },
         custom_data: {
           telegramId: String(telegramId),
           planId: plan.id,

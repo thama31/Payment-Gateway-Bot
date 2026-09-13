@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
+import payRouter from "./routes/pay";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -36,6 +37,7 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+app.use(payRouter);
 
 app.get("/", (_req, res) => {
   res.type("html").send(`<!doctype html>
