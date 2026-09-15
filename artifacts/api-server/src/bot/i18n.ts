@@ -18,6 +18,9 @@ const id: Dict = {
   btn_plans: "💎 Paket Langganan",
   btn_join: "JOIN 🔑",
   btn_questions: "QUESTIONS 💬",
+  questions_disclaimer:
+    "⚠️ <b>BACA DULU SEBELUM CHAT ADMIN</b>\n\nAdmin <b>HANYA</b> merespons pertanyaan seputar <b>pembayaran dan langganan</b>.\n\n❌ Obrolan pribadi, request khusus, basa-basi, atau pertanyaan di luar topik <b>TIDAK AKAN DIBALAS</b> dan akan langsung diabaikan.\n\n✅ Kalau pertanyaan kamu memang soal pembayaran atau langganan, silakan lanjut di bawah 👇",
+  btn_contact_admin: "💬 Lanjut ke Admin",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Dukungan",
   btn_language: "🌐 Ubah Bahasa",
@@ -75,6 +78,9 @@ const en: Dict = {
   btn_plans: "💎 Subscription Plans",
   btn_join: "JOIN 🔑",
   btn_questions: "QUESTIONS 💬",
+  questions_disclaimer:
+    "⚠️ <b>READ THIS BEFORE MESSAGING THE ADMIN</b>\n\nThe admin <b>ONLY</b> responds to questions about <b>payments and subscriptions</b>.\n\n❌ Personal chat, special requests, small talk, or anything off-topic <b>WILL NOT BE ANSWERED</b> and will be ignored.\n\n✅ If your question really is about payment or your subscription, continue below 👇",
+  btn_contact_admin: "💬 Continue to Admin",
   btn_status: "📊 My Subscription",
   btn_help: "❓ Help & Support",
   btn_language: "🌐 Change Language",
@@ -132,6 +138,9 @@ const my: Dict = {
   btn_plans: "💎 Pakej Langganan",
   btn_join: "JOIN 🔑",
   btn_questions: "QUESTIONS 💬",
+  questions_disclaimer:
+    "⚠️ <b>BACA DULU SEBELUM HUBUNGI ADMIN</b>\n\nAdmin <b>HANYA</b> menjawab pertanyaan berkaitan <b>pembayaran dan langganan</b>.\n\n❌ Sembang peribadi, permintaan khas, borak kosong, atau soalan di luar topik <b>TIDAK AKAN DIBALAS</b> dan akan terus diabaikan.\n\n✅ Kalau soalan anda memang mengenai pembayaran atau langganan, sila teruskan di bawah 👇",
+  btn_contact_admin: "💬 Teruskan ke Admin",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Sokongan",
   btn_language: "🌐 Tukar Bahasa",
@@ -189,6 +198,9 @@ const ar: Dict = {
   btn_plans: "💎 خطط الاشتراك",
   btn_join: "JOIN 🔑",
   btn_questions: "QUESTIONS 💬",
+  questions_disclaimer:
+    "⚠️ <b>اقرأ هذا قبل مراسلة المسؤول</b>\n\nالمسؤول يرد <b>فقط</b> على الأسئلة المتعلقة بـ<b>الدفع والاشتراك</b>.\n\n❌ المحادثات الشخصية أو الطلبات الخاصة أو الأحاديث الجانبية أو أي شيء خارج الموضوع <b>لن يتم الرد عليه</b> وسيتم تجاهله.\n\n✅ إذا كان سؤالك فعلاً عن الدفع أو اشتراكك، تابع بالأسفل 👇",
+  btn_contact_admin: "💬 المتابعة إلى المسؤول",
   btn_status: "📊 اشتراكي",
   btn_help: "❓ المساعدة والدعم",
   btn_language: "🌐 تغيير اللغة",

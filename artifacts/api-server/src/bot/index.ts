@@ -319,7 +319,7 @@ function mainMenuKeyboard(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
     .text(t(lang, "btn_join"), "menu:plans").row()
     .url(`👁 ${toBoldUnicode("Preview")} 🎬`, PREVIEW_LINK).row()
-    .url(t(lang, "btn_questions"), ADMIN_CONTACT_URL).row()
+    .text(t(lang, "btn_questions"), "menu:questions").row()
     .text(t(lang, "btn_language"), "menu:language");
 }
 
@@ -487,6 +487,17 @@ bot.callbackQuery("menu:language", async (ctx) => {
   await ctx.answerCallbackQuery();
   await ctx.editMessageText("🌐 Pilih bahasa / Select language / Pilih bahasa / اختر اللغة", {
     reply_markup: languageKeyboard(),
+  });
+});
+
+bot.callbackQuery("menu:questions", async (ctx) => {
+  const lang = await getLang(ctx);
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText(t(lang, "questions_disclaimer"), {
+    parse_mode: "HTML",
+    reply_markup: new InlineKeyboard()
+      .url(t(lang, "btn_contact_admin"), ADMIN_CONTACT_URL).row()
+      .text(t(lang, "btn_back"), "menu:main"),
   });
 });
 
