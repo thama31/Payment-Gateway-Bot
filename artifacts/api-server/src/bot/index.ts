@@ -360,7 +360,7 @@ bot.command("start", async (ctx) => {
   if (fs.existsSync(introPath)) {
     try {
       await ctx.replyWithVideo(new InputFile(introPath), {
-        caption: "🔥 <b>Welcome!</b>\n\nSilakan pilih bahasa di bawah.",
+        caption: "🔥 <b>Welcome to Unlimited Fun!</b>",
         parse_mode: "HTML",
         supports_streaming: true,
       });
@@ -369,23 +369,25 @@ bot.command("start", async (ctx) => {
     }
   }
 
-  const previewOnlyKb = new InlineKeyboard()
-    .url(`👁 ${toBoldUnicode("Preview Channel")} 🔥`, PREVIEW_LINK);
+  // First screen: only two choices. Preview opens the preview channel link
+  // directly; Join leads to language selection and then the existing flow.
+  const startKb = new InlineKeyboard()
+    .url(`👁 ${toBoldUnicode("Preview")} 🎬`, PREVIEW_LINK).row()
+    .text(`🔑 ${toBoldUnicode("Join")}`, "start:join");
 
-  const previewCtaText = LANGUAGES.map((l) => `${l.flag} ${t(l.code, "preview_cta")}`).join("\n");
-
-  await ctx.reply(previewCtaText, {
-    reply_markup: previewOnlyKb,
+  await ctx.reply("🥳 <b>Welcome to Unlimited Fun!</b>", {
+    parse_mode: "HTML",
+    reply_markup: startKb,
   });
+});
 
-  await ctx.reply(
-    t("en", "choose_language"),
-    {
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-      reply_markup: languageKeyboard(),
-    }
-  );
+bot.callbackQuery("start:join", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText(t("en", "choose_language"), {
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
+    reply_markup: languageKeyboard(),
+  });
 });
 
 bot.command("menu", async (ctx) => {
