@@ -2,20 +2,15 @@ import crypto from "node:crypto";
 import { logger } from "../lib/logger";
 import type { Plan, PlanKey } from "./plans";
 
-const PADDLE_API_KEY = process.env["PADDLE_API_KEY"];
 const PADDLE_WEBHOOK_SECRET = process.env["PADDLE_WEBHOOK_SECRET"];
-const PADDLE_ENV = process.env["PADDLE_ENV"] === "sandbox" ? "sandbox" : "production";
-const PADDLE_API_BASE =
-  PADDLE_ENV === "sandbox" ? "https://sandbox-api.paddle.com" : "https://api.paddle.com";
 
-// Our own hosted checkout page (see app.ts `/pay` route) that loads Paddle.js
-// and opens the overlay for a given transaction. We pass this explicitly so
-// checkout always lands here, regardless of the Paddle account's own
-// "default payment link" setting (which may point elsewhere, e.g. a
-// separate marketing site).
-const CHECKOUT_PAGE_URL = process.env["PUBLIC_BASE_URL"]
-  ? `${process.env["PUBLIC_BASE_URL"].replace(/\/$/, "")}/pay`
-  : "https://payment-gateway-bot.fly.dev/pay";
+// Hosted checkout page on an already Paddle-approved domain (the innominata
+// ebook site's own /pay.html). Checkout opens client-side via Paddle.js —
+// no server-side transaction creation needed, which also sidesteps the
+// per-domain checkout approval issue entirely (the bot's own fly.dev domain
+// was rejected by Paddle's review; this domain is already approved and
+// already runs a working Paddle checkout for the Vault product).
+const CHECKOUT_PAGE_URL = process.env["PADDLE_CHECKOUT_PAGE_URL"] ?? "https://innominata.netlify.app/pay.html";
 
 // Map each plan key to its Paddle Price ID (set these in your Paddle dashboard
 // under Catalog > Products, then paste the Price IDs into env vars).
@@ -26,58 +21,30 @@ const PADDLE_PRICE_IDS: Record<PlanKey, string | undefined> = {
 };
 
 export function isPaddleConfigured(): boolean {
-  return Boolean(PADDLE_API_KEY && PADDLE_WEBHOOK_SECRET);
+  return Boolean(PADDLE_WEBHOOK_SECRET);
 }
 
 /**
- * Creates a Paddle transaction for the given plan and returns a hosted
- * checkout URL the user can open to pay (card, PayPal, etc. — whatever
- * payment methods are enabled on your Paddle account).
+ * Builds a link to our hosted checkout page, which opens Paddle's
+ * client-side Checkout overlay for the given plan (card, PayPal, etc. —
+ * whatever payment methods are enabled on the Paddle account).
  *
- * telegramId/planId/region are attached as custom_data so the webhook
- * handler can identify who paid for what once payment completes.
+ * telegramId/planId/region are passed as query params and attached as
+ * Paddle custom_data by pay.html, so the webhook handler can identify who
+ * paid for what once payment completes.
  */
-export async function createPaddleCheckout(plan: Plan, telegramId: number): Promise<string | null> {
-  if (!PADDLE_API_KEY) {
-    logger.error("PADDLE_API_KEY is not set");
-    return null;
-  }
+export function createPaddleCheckoutUrl(plan: Plan, telegramId: number): string | null {
   const priceId = PADDLE_PRICE_IDS[plan.key];
   if (!priceId) {
     logger.error({ planKey: plan.key }, "No Paddle price id configured for this plan");
     return null;
   }
-
-  try {
-    const res = await fetch(`${PADDLE_API_BASE}/transactions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${PADDLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        items: [{ price_id: priceId, quantity: 1 }],
-        checkout: { url: CHECKOUT_PAGE_URL },
-        custom_data: {
-          telegramId: String(telegramId),
-          planId: plan.id,
-          region: plan.region,
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      logger.error({ status: res.status, errText }, "Paddle create-transaction request failed");
-      return null;
-    }
-
-    const json = (await res.json()) as { data?: { checkout?: { url?: string } } };
-    return json.data?.checkout?.url ?? null;
-  } catch (err) {
-    logger.error({ err }, "Failed to call Paddle API");
-    return null;
-  }
+  const url = new URL(CHECKOUT_PAGE_URL);
+  url.searchParams.set("price", priceId);
+  url.searchParams.set("tid", String(telegramId));
+  url.searchParams.set("plan", plan.id);
+  url.searchParams.set("region", plan.region);
+  return url.toString();
 }
 
 /**

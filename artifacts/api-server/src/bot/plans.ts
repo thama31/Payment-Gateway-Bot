@@ -58,15 +58,11 @@ export const PAYMENT_METHODS: Record<Region, { id: string; label: string; detail
     },
   ],
   intl: [
-    // Paddle temporarily disabled: checkout domain isn't approved yet,
-    // causing every live attempt to fail with
-    // "transaction_checkout_url_domain_is_not_approved". Re-enable this
-    // block once a Paddle-approved checkout domain is wired up.
-    // {
-    //   id: "paddle",
-    //   label: "💳 Card / PayPal (via Paddle)",
-    //   details: "",
-    // },
+    {
+      id: "paddle",
+      label: "💳 Card / PayPal (via Paddle)",
+      details: "",
+    },
     {
       id: "wise",
       label: "Wise",

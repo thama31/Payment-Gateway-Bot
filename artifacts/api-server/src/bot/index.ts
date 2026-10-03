@@ -6,7 +6,7 @@ import { eq, and, desc, sql, gt, isNull, or, lte } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { LANGUAGES, t, type Lang } from "./i18n";
 import { PLANS, PAYMENT_METHODS, findPlanById, type Region, type PlanKey, type Plan } from "./plans";
-import { createPaddleCheckout, isPaddleConfigured } from "./paddle";
+import { createPaddleCheckoutUrl, isPaddleConfigured } from "./paddle";
 import { syncUsersToSheet, appendUserRow, syncSubscribersToSheet, syncPaymentsToSheet, appendSubscriberRow, appendPaymentRow } from "./sheets";
 
 interface SessionData {
@@ -737,7 +737,7 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
       await ctx.reply("⚠️ Paddle isn't configured yet. Please choose another payment method.");
       return;
     }
-    const checkoutUrl = await createPaddleCheckout(plan, ctx.from.id);
+    const checkoutUrl = createPaddleCheckoutUrl(plan, ctx.from.id);
     if (!checkoutUrl) {
       await ctx.reply(
         "⚠️ Couldn't create a Paddle checkout right now. Please try again in a moment, or choose another payment method."
