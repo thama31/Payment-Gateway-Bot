@@ -1,8 +1,8 @@
 import { Bot, InlineKeyboard, InputFile, type Context, session, type SessionFlavor, type StorageAdapter } from "grammy";
 import path from "node:path";
 import fs from "node:fs";
-import { db, pool, usersTable, subscriptionsTable, paymentProofsTable } from "@workspace/db";
-import { eq, and, desc, sql, gt, isNull, or } from "drizzle-orm";
+import { db, pool, usersTable, subscriptionsTable, paymentProofsTable, previewAccessTable } from "@workspace/db";
+import { eq, and, desc, sql, gt, isNull, or, lte } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { LANGUAGES, t, type Lang } from "./i18n";
 import { PLANS, PAYMENT_METHODS, findPlanById, type Region, type PlanKey, type Plan } from "./plans";
@@ -30,6 +30,27 @@ const channelIdParsed: number | string = /^-?\d+$/.test(CHANNEL_ID)
   : CHANNEL_ID;
 
 const BONUS_CHANNEL_ID: number = -1003774836104;
+
+// Optional: if set, the Preview button issues a personal, single-use trial
+// invite that auto-expires N hours after the user actually joins. If unset,
+// Preview falls back to the old static link (no trial tracking).
+const PREVIEW_CHANNEL_ID_RAW = process.env["TELEGRAM_PREVIEW_CHANNEL_ID"];
+const previewChannelIdParsed: number | string | null = PREVIEW_CHANNEL_ID_RAW
+  ? /^-?\d+$/.test(PREVIEW_CHANNEL_ID_RAW)
+    ? Number(PREVIEW_CHANNEL_ID_RAW)
+    : PREVIEW_CHANNEL_ID_RAW
+  : null;
+const PREVIEW_TRIAL_HOURS = 36;
+
+function isPreviewTrialConfigured(): boolean {
+  return previewChannelIdParsed !== null;
+}
+
+function previewDurationLabel(lang: Lang): string {
+  if (lang === "en") return `${PREVIEW_TRIAL_HOURS} hours`;
+  if (lang === "ar") return `${PREVIEW_TRIAL_HOURS} ساعة`;
+  return `${PREVIEW_TRIAL_HOURS} jam`;
+}
 
 function isBonusEligible(planKey: PlanKey): boolean {
   return planKey === "monthly" || planKey === "permanent";
@@ -220,6 +241,146 @@ bot.use(session({
   storage: new PostgresSessionStorage(),
 }));
 
+bot.callbackQuery("preview:request", async (ctx) => {
+  const lang = await getLang(ctx);
+  if (!ctx.from) return;
+  await ctx.answerCallbackQuery();
+  const telegramId = ctx.from.id;
+
+  if (!isPreviewTrialConfigured()) {
+    await ctx.reply(`👁 ${PREVIEW_LINK}`, { link_preview_options: { is_disabled: true } });
+    return;
+  }
+
+  const existing = await db
+    .select()
+    .from(previewAccessTable)
+    .where(eq(previewAccessTable.telegramId, telegramId))
+    .orderBy(desc(previewAccessTable.invitedAt))
+    .limit(1);
+
+  if (existing.length > 0) {
+    const row = existing[0]!;
+    if (row.kicked) {
+      await ctx.reply(t(lang, "preview_already_used"), {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(t(lang, "btn_join"), "menu:plans"),
+      });
+      return;
+    }
+    if (row.joinedAt && row.expiresAt && row.expiresAt > new Date()) {
+      await ctx.reply(
+        t(lang, "preview_still_active", {
+          expires: row.expiresAt.toISOString().slice(0, 16).replace("T", " "),
+        }),
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+    if (!row.joinedAt && row.inviteLink) {
+      // Already has a pending, unused invite — resend it instead of creating a new one.
+      await ctx.reply(
+        t(lang, "preview_granted", { link: row.inviteLink, duration: previewDurationLabel(lang) }),
+        { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
+      );
+      return;
+    }
+  }
+
+  let inviteLink: string;
+  try {
+    const link = await bot.api.createChatInviteLink(previewChannelIdParsed!, {
+      member_limit: 1,
+      name: `Preview #${telegramId}`,
+    });
+    inviteLink = link.invite_link;
+  } catch (err) {
+    logger.error({ err }, "Failed to create preview invite link");
+    await ctx.reply("⚠️ Failed to generate a preview link right now, please try again shortly.");
+    return;
+  }
+
+  await db.insert(previewAccessTable).values({ telegramId, inviteLink });
+
+  await ctx.reply(
+    t(lang, "preview_granted", { link: inviteLink, duration: previewDurationLabel(lang) }),
+    { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
+  );
+});
+
+// Detect when an invited user actually joins the preview channel, and start
+// their trial countdown from that moment (not from when the link was sent).
+bot.on("chat_member", async (ctx) => {
+  if (!isPreviewTrialConfigured()) return;
+  const upd = ctx.chatMember;
+  if (String(upd.chat.id) !== String(previewChannelIdParsed)) return;
+
+  const oldStatus = upd.old_chat_member.status;
+  const newStatus = upd.new_chat_member.status;
+  const justJoined =
+    (newStatus === "member" || newStatus === "restricted") &&
+    (oldStatus === "left" || oldStatus === "kicked");
+  if (!justJoined) return;
+
+  const telegramId = upd.new_chat_member.user.id;
+  const pending = await db
+    .select()
+    .from(previewAccessTable)
+    .where(and(eq(previewAccessTable.telegramId, telegramId), isNull(previewAccessTable.joinedAt)))
+    .orderBy(desc(previewAccessTable.invitedAt))
+    .limit(1);
+
+  if (pending.length === 0) return;
+
+  const joinedAt = new Date();
+  const expiresAt = new Date(joinedAt.getTime() + PREVIEW_TRIAL_HOURS * 60 * 60 * 1000);
+  await db
+    .update(previewAccessTable)
+    .set({ joinedAt, expiresAt })
+    .where(eq(previewAccessTable.id, pending[0]!.id));
+});
+
+export async function runPreviewExpiryCheck(): Promise<number> {
+  if (!isPreviewTrialConfigured()) return 0;
+  const now = new Date();
+  const toKick = await db
+    .select()
+    .from(previewAccessTable)
+    .where(and(eq(previewAccessTable.kicked, false), lte(previewAccessTable.expiresAt, now)));
+
+  let count = 0;
+  for (const row of toKick) {
+    if (!row.expiresAt) continue;
+    try {
+      await bot.api.banChatMember(previewChannelIdParsed!, Number(row.telegramId));
+      await bot.api.unbanChatMember(previewChannelIdParsed!, Number(row.telegramId));
+    } catch (err) {
+      logger.warn({ err, userId: row.telegramId }, "Preview kick skipped (user may have already left)");
+    }
+    await db
+      .update(previewAccessTable)
+      .set({ kicked: true, kickedAt: now })
+      .where(eq(previewAccessTable.id, row.id));
+    count++;
+
+    try {
+      const userRow = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, row.telegramId))
+        .limit(1);
+      const userLang = (userRow[0]?.language as Lang) ?? "id";
+      await bot.api.sendMessage(Number(row.telegramId), t(userLang, "preview_kicked_cta"), {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(t(userLang, "btn_join"), "menu:plans"),
+      });
+    } catch (err) {
+      logger.error({ err }, "Failed to notify preview-expired user");
+    }
+  }
+  return count;
+}
+
 async function getOrCreateUser(ctx: BotContext) {
   const tg = ctx.from;
   if (!tg) return null;
@@ -274,7 +435,7 @@ function languageKeyboard(): InlineKeyboard {
   return kb;
 }
 
-const PREVIEW_LINK = "https://t.me/+MIBl0i82ZMIyY2Rl";
+const PREVIEW_LINK = "https://t.me/+ACW0b8ovRf81NGZl";
 
 // Telegram inline-button labels don't support HTML/Markdown formatting,
 // so to make text look "bold" we swap regular letters/digits for their
@@ -318,7 +479,7 @@ function mainMenuText(lang: Lang, region: Region): string {
 function mainMenuKeyboard(lang: Lang): InlineKeyboard {
   return new InlineKeyboard()
     .text(t(lang, "btn_join"), "menu:plans").row()
-    .url(`👁 ${toBoldUnicode("Preview")} 🎬`, PREVIEW_LINK).row()
+    .text(`👁 ${toBoldUnicode("Preview")} 🎬`, "preview:request").row()
     .text(t(lang, "btn_questions"), "menu:questions").row()
     .text(t(lang, "btn_language"), "menu:language");
 }
@@ -372,7 +533,7 @@ bot.command("start", async (ctx) => {
   // First screen: only two choices. Preview opens the preview channel link
   // directly; Join leads to language selection and then the existing flow.
   const startKb = new InlineKeyboard()
-    .url(`👁 ${toBoldUnicode("Preview")} 🎬`, PREVIEW_LINK).row()
+    .text(`👁 ${toBoldUnicode("Preview")} 🎬`, "preview:request").row()
     .text(`🔑 ${toBoldUnicode("Join")}`, "start:join");
 
   await ctx.reply("🥳 <b>Welcome to Unlimited Fun!</b>", {
@@ -1135,6 +1296,16 @@ bot.command("expire_check", async (ctx) => {
   await ctx.reply(`Expiry check done. ${count} subscription(s) expired & users kicked.`);
 });
 
+bot.command("preview_expire_check", async (ctx) => {
+  if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
+  if (!isPreviewTrialConfigured()) {
+    await ctx.reply("⚠️ TELEGRAM_PREVIEW_CHANNEL_ID isn't set, preview trial tracking is disabled.");
+    return;
+  }
+  const count = await runPreviewExpiryCheck();
+  await ctx.reply(`Preview expiry check done. ${count} trial user(s) expired & kicked.`);
+});
+
 bot.command("broadcast", async (ctx) => {
   if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
   ctx.session.awaitingBroadcast = true;
@@ -1339,10 +1510,12 @@ bot.catch((err) => {
 
 export function startBot() {
   bot.start({
+    allowed_updates: ["message", "callback_query", "chat_member"],
     onStart: (info) => logger.info({ username: info.username }, "Telegram bot started"),
   }).catch((err) => logger.error({ err }, "Bot failed to start"));
 
   setInterval(() => {
     runExpiryCheck().catch((err) => logger.error({ err }, "Expiry check failed"));
+    runPreviewExpiryCheck().catch((err) => logger.error({ err }, "Preview expiry check failed"));
   }, 60 * 60 * 1000);
 }

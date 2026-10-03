@@ -5,6 +5,7 @@ import {
   bigint,
   timestamp,
   varchar,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 export const usersTable = pgTable("users", {
@@ -43,6 +44,18 @@ export const paymentProofsTable = pgTable("payment_proofs", {
   reviewedAt: timestamp("reviewed_at"),
 });
 
+export const previewAccessTable = pgTable("preview_access", {
+  id: serial("id").primaryKey(),
+  telegramId: bigint("telegram_id", { mode: "number" }).notNull(),
+  inviteLink: text("invite_link"),
+  invitedAt: timestamp("invited_at").notNull().defaultNow(),
+  joinedAt: timestamp("joined_at"),
+  expiresAt: timestamp("expires_at"),
+  kicked: boolean("kicked").notNull().default(false),
+  kickedAt: timestamp("kicked_at"),
+});
+
 export type User = typeof usersTable.$inferSelect;
 export type Subscription = typeof subscriptionsTable.$inferSelect;
 export type PaymentProof = typeof paymentProofsTable.$inferSelect;
+export type PreviewAccess = typeof previewAccessTable.$inferSelect;

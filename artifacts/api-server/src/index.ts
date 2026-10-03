@@ -52,6 +52,19 @@ async function initDatabase() {
         value jsonb NOT NULL,
         updated_at timestamp NOT NULL DEFAULT now()
       );
+
+      CREATE SEQUENCE IF NOT EXISTS public.preview_access_id_seq
+        AS integer START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
+      CREATE TABLE IF NOT EXISTS public.preview_access (
+        id integer NOT NULL DEFAULT nextval('public.preview_access_id_seq'::regclass) PRIMARY KEY,
+        telegram_id bigint NOT NULL,
+        invite_link text,
+        invited_at timestamp NOT NULL DEFAULT now(),
+        joined_at timestamp,
+        expires_at timestamp,
+        kicked boolean NOT NULL DEFAULT false,
+        kicked_at timestamp
+      );
     `);
     logger.info("Database schema ready");
   } finally {
