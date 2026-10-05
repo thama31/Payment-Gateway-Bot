@@ -18,7 +18,7 @@ interface SessionData {
 type BotContext = Context & SessionFlavor<SessionData>;
 
 const TOKEN = process.env["TELEGRAM_BOT_TOKEN"];
-const ADMIN_ID = Number(process.env["TELEGRAM_ADMIN_ID"] ?? 0);
+export const ADMIN_ID = Number(process.env["TELEGRAM_ADMIN_ID"] ?? 0);
 const CHANNEL_ID = process.env["TELEGRAM_CHANNEL_ID"];
 
 if (!TOKEN) throw new Error("TELEGRAM_BOT_TOKEN is required");

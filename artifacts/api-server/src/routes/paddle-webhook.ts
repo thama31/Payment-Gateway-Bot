@@ -1,9 +1,9 @@
 import { Router, type IRouter, type Request } from "express";
-import { db, paymentProofsTable } from "@workspace/db";
+import { db, paymentProofsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { verifyPaddleWebhookSignature } from "../bot/paddle";
-import { grantSubscriptionAccess } from "../bot/index";
+import { grantSubscriptionAccess, bot, ADMIN_ID } from "../bot/index";
 import { findPlanById } from "../bot/plans";
 
 const router: IRouter = Router();
@@ -86,6 +86,19 @@ router.post("/webhooks/paddle", async (req, res) => {
     });
 
     await grantSubscriptionAccess(telegramId, plan, txnId);
+
+    try {
+      const userRow = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+      const u = userRow[0];
+      const who = u?.username ? `@${u.username}` : u?.firstName ? u.firstName : `ID ${telegramId}`;
+      await bot.api.sendMessage(
+        ADMIN_ID,
+        `💰 <b>New Paddle payment</b>\n\n👤 ${who} (<code>${telegramId}</code>)\n📦 Plan: <b>${plan.key}</b> — ${plan.price}\n🧾 Txn: <code>${txnId}</code>`,
+        { parse_mode: "HTML" }
+      );
+    } catch (err) {
+      logger.error({ err }, "Failed to notify admin about Paddle payment");
+    }
 
     res.status(200).json({ received: true });
   } catch (err) {
