@@ -247,12 +247,35 @@ bot.use(session({
 // unpredictable schedules, so both are watched separately.
 const MAIN_SOURCE_CHANNEL_IDS: (number | string)[] = [channelIdParsed, BONUS_CHANNEL_ID];
 
+// A single "drop" can contain 10+ posts in quick succession. Only the first
+// few get a Forward/Skip prompt — the rest are skipped automatically so the
+// admin isn't stuck dismissing a dozen prompts per batch. Posts separated by
+// more than BATCH_GAP_MS are treated as a new batch (counter resets).
+const BATCH_PROMPT_LIMIT = 4;
+const BATCH_GAP_MS = 10 * 60 * 1000; // 10 minutes
+const channelPostBatchState = new Map<string, { count: number; lastPostAt: number }>();
+
+function shouldPromptForPost(chatId: number | string): boolean {
+  const key = String(chatId);
+  const now = Date.now();
+  const state = channelPostBatchState.get(key);
+  if (!state || now - state.lastPostAt > BATCH_GAP_MS) {
+    channelPostBatchState.set(key, { count: 1, lastPostAt: now });
+    return true;
+  }
+  state.lastPostAt = now;
+  if (state.count >= BATCH_PROMPT_LIMIT) return false;
+  state.count++;
+  return true;
+}
+
 bot.on("channel_post", async (ctx) => {
   if (!isPreviewTrialConfigured()) return;
   const post = ctx.channelPost;
   if (!post) return;
   const sourceChatId = MAIN_SOURCE_CHANNEL_IDS.find((id) => String(id) === String(post.chat.id));
   if (!sourceChatId) return;
+  if (!shouldPromptForPost(sourceChatId)) return;
 
   const fwdKeyboard = new InlineKeyboard()
     .text("✅ Forward to Preview", `admin_fwd:send:${sourceChatId}:${post.message_id}`)
