@@ -241,6 +241,64 @@ bot.use(session({
   storage: new PostgresSessionStorage(),
 }));
 
+// New post in either main channel (primary or bonus) → DM the admin a copy
+// with Forward/Skip buttons, so they can curate exactly which items get
+// teased in the preview/trial channel. The two channels post on independent,
+// unpredictable schedules, so both are watched separately.
+const MAIN_SOURCE_CHANNEL_IDS: (number | string)[] = [channelIdParsed, BONUS_CHANNEL_ID];
+
+bot.on("channel_post", async (ctx) => {
+  if (!isPreviewTrialConfigured()) return;
+  const post = ctx.channelPost;
+  if (!post) return;
+  const sourceChatId = MAIN_SOURCE_CHANNEL_IDS.find((id) => String(id) === String(post.chat.id));
+  if (!sourceChatId) return;
+
+  const fwdKeyboard = new InlineKeyboard()
+    .text("✅ Forward to Preview", `admin_fwd:send:${sourceChatId}:${post.message_id}`)
+    .text("❌ Skip", `admin_fwd:skip:${sourceChatId}:${post.message_id}`);
+
+  try {
+    await bot.api.copyMessage(ADMIN_ID, sourceChatId, post.message_id, {
+      reply_markup: fwdKeyboard,
+    });
+  } catch (err) {
+    logger.error({ err }, "Failed to DM admin about new main-channel post");
+  }
+});
+
+bot.callbackQuery(/^admin_fwd:(send|skip):(-?\w+):(\d+)$/, async (ctx) => {
+  if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
+  const action = ctx.match![1] as "send" | "skip";
+  const sourceChatIdRaw = ctx.match![2]!;
+  const sourceChatId: number | string = /^-?\d+$/.test(sourceChatIdRaw) ? Number(sourceChatIdRaw) : sourceChatIdRaw;
+  const messageId = Number(ctx.match![3]);
+
+  if (action === "skip") {
+    await ctx.answerCallbackQuery("Skipped");
+    try {
+      await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+    } catch (_) {}
+    return;
+  }
+
+  if (!isPreviewTrialConfigured()) {
+    await ctx.answerCallbackQuery("Preview channel isn't configured");
+    return;
+  }
+
+  try {
+    await bot.api.copyMessage(previewChannelIdParsed!, sourceChatId, messageId);
+    await ctx.answerCallbackQuery("Forwarded to Preview ✅");
+    try {
+      await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+    } catch (_) {}
+  } catch (err) {
+    logger.error({ err }, "Failed to forward post to preview channel");
+    await ctx.answerCallbackQuery("Failed to forward, check logs");
+  }
+});
+
 bot.callbackQuery("preview:request", async (ctx) => {
   const lang = await getLang(ctx);
   if (!ctx.from) return;
@@ -1510,7 +1568,7 @@ bot.catch((err) => {
 
 export function startBot() {
   bot.start({
-    allowed_updates: ["message", "callback_query", "chat_member"],
+    allowed_updates: ["message", "callback_query", "chat_member", "channel_post"],
     onStart: (info) => logger.info({ username: info.username }, "Telegram bot started"),
   }).catch((err) => logger.error({ err }, "Bot failed to start"));
 
