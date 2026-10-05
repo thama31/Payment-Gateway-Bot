@@ -342,7 +342,8 @@ bot.callbackQuery("preview:request", async (ctx) => {
 
   if (existing.length > 0) {
     const row = existing[0]!;
-    if (row.kicked) {
+    const alreadyExpired = row.joinedAt && row.expiresAt && row.expiresAt <= new Date();
+    if (row.kicked || alreadyExpired) {
       await ctx.reply(t(lang, "preview_already_used"), {
         parse_mode: "HTML",
         reply_markup: new InlineKeyboard().text(t(lang, "btn_join"), "menu:plans"),
