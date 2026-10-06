@@ -434,8 +434,11 @@ export async function runPreviewExpiryCheck(): Promise<number> {
   for (const row of toKick) {
     if (!row.expiresAt) continue;
     try {
+      // Permanent ban (no unban) — once a preview trial expires, the user
+      // should never be able to rejoin the preview channel again, even via
+      // someone else's invite link or re-adds. This only applies to the
+      // preview channel; main/bonus channel access is unaffected.
       await bot.api.banChatMember(previewChannelIdParsed!, Number(row.telegramId));
-      await bot.api.unbanChatMember(previewChannelIdParsed!, Number(row.telegramId));
     } catch (err) {
       logger.warn({ err, userId: row.telegramId }, "Preview kick skipped (user may have already left)");
     }
