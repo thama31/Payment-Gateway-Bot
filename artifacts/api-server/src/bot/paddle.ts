@@ -24,6 +24,44 @@ export function isPaddleConfigured(): boolean {
   return Boolean(PADDLE_WEBHOOK_SECRET);
 }
 
+/** Reverse lookup: which of our plans does this Paddle price ID belong to? */
+export function planKeyFromPriceId(priceId: string): PlanKey | null {
+  for (const [key, id] of Object.entries(PADDLE_PRICE_IDS)) {
+    if (id && id === priceId) return key as PlanKey;
+  }
+  return null;
+}
+
+const PADDLE_API_BASE =
+  process.env["PADDLE_ENV"] === "sandbox" ? "https://sandbox-api.paddle.com" : "https://api.paddle.com";
+
+/**
+ * Best-effort lookup of a customer's name/email (the transaction webhook only
+ * carries the customer ID). Needs PADDLE_API_KEY with customer read access.
+ * Returns null on any failure — callers must treat this as optional info.
+ */
+export async function fetchPaddleCustomer(
+  customerId: string
+): Promise<{ email: string | null; name: string | null } | null> {
+  const apiKey = process.env["PADDLE_API_KEY"];
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(`${PADDLE_API_BASE}/customers/${encodeURIComponent(customerId)}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      logger.warn({ status: res.status }, "Paddle customer lookup failed");
+      return null;
+    }
+    const json = (await res.json()) as { data?: { email?: string | null; name?: string | null } };
+    return { email: json.data?.email ?? null, name: json.data?.name ?? null };
+  } catch (err) {
+    logger.warn({ err }, "Paddle customer lookup errored");
+    return null;
+  }
+}
+
 /**
  * Builds a link to our hosted checkout page, which opens Paddle's
  * client-side Checkout overlay for the given plan (card, PayPal, etc. —
