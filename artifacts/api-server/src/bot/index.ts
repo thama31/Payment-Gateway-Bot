@@ -1391,6 +1391,89 @@ bot.command("preview_expire_check", async (ctx) => {
   await ctx.reply(`Preview expiry check done. ${count} trial user(s) expired & kicked.`);
 });
 
+// Users currently blocked from the preview trial = those whose most recent
+// preview_access row has been kicked. (Users whose time is up but haven't
+// been processed by the hourly check yet are intentionally excluded: they
+// are still inside the channel, so wiping their record would leave them
+// there with no expiry. The hourly check handles them first.)
+async function getBlockedPreviewUsers(): Promise<number[]> {
+  const rows = await db.select().from(previewAccessTable).orderBy(desc(previewAccessTable.invitedAt));
+  const latestByUser = new Map<number, (typeof rows)[number]>();
+  for (const r of rows) {
+    const key = Number(r.telegramId);
+    if (!latestByUser.has(key)) latestByUser.set(key, r);
+  }
+  return [...latestByUser.entries()].filter(([, r]) => r.kicked).map(([id]) => id);
+}
+
+bot.command("preview_reset", async (ctx) => {
+  if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
+  if (!isPreviewTrialConfigured()) {
+    await ctx.reply("⚠️ TELEGRAM_PREVIEW_CHANNEL_ID isn't set, preview trial tracking is disabled.");
+    return;
+  }
+  const blocked = await getBlockedPreviewUsers();
+  if (blocked.length === 0) {
+    await ctx.reply("No users are currently blocked from the preview trial, nothing to reset.");
+    return;
+  }
+  await ctx.reply(
+    `🔄 <b>Reset preview trial</b>\n\n<b>${blocked.length}</b> user(s) have used up their trial and are blocked.\n\nResetting will:\n• Lift their ban on the preview channel\n• Clear their trial record, so they can tap Preview again for one more ${PREVIEW_TRIAL_HOURS}h trial\n\nWhen that second trial ends they're removed again, as usual.\n\n<i>This can't be undone.</i>`,
+    {
+      parse_mode: "HTML",
+      reply_markup: new InlineKeyboard()
+        .text(`✅ Reset ${blocked.length} user(s)`, "preview_reset:confirm")
+        .text("Cancel", "preview_reset:cancel"),
+    }
+  );
+});
+
+bot.callbackQuery(/^preview_reset:(confirm|cancel)$/, async (ctx) => {
+  if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
+  const action = ctx.match![1] as "confirm" | "cancel";
+  // Remove the buttons right away so a double-tap can't start two runs.
+  try {
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+  } catch (_) {}
+
+  if (action === "cancel") {
+    await ctx.answerCallbackQuery("Cancelled");
+    return;
+  }
+  if (!isPreviewTrialConfigured()) {
+    await ctx.answerCallbackQuery("Preview channel isn't configured");
+    return;
+  }
+  await ctx.answerCallbackQuery("Resetting…");
+
+  // Run in the background so a long list doesn't block other updates;
+  // the result is sent as a message when finished.
+  void (async () => {
+    // Re-query rather than trusting the count shown earlier.
+    const blocked = await getBlockedPreviewUsers();
+    let resetCount = 0;
+    let failed = 0;
+    for (const telegramId of blocked) {
+      try {
+        // only_if_banned: never remove someone who is currently a member.
+        await bot.api.unbanChatMember(previewChannelIdParsed!, telegramId, { only_if_banned: true });
+        await db.delete(previewAccessTable).where(eq(previewAccessTable.telegramId, telegramId));
+        resetCount++;
+      } catch (err) {
+        failed++;
+        logger.error({ err, telegramId }, "Failed to reset preview trial for user");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+    logger.info({ resetCount, failed }, "Preview trial reset finished");
+    await bot.api.sendMessage(
+      ADMIN_ID,
+      `✅ <b>Preview reset finished</b>\n\nReset: <b>${resetCount}</b>${failed ? `\nFailed: <b>${failed}</b> (still blocked, see logs)` : ""}`,
+      { parse_mode: "HTML" }
+    );
+  })().catch((err) => logger.error({ err }, "Preview trial reset crashed"));
+});
+
 bot.command("broadcast", async (ctx) => {
   if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
   ctx.session.awaitingBroadcast = true;
