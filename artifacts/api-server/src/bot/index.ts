@@ -290,6 +290,32 @@ bot.on("channel_post", async (ctx) => {
   }
 });
 
+// When the admin forwards content to the preview channel, also post a short
+// "new update" heads-up there so they don't have to type one. Forwarding
+// several items in a row would otherwise produce several identical
+// announcements, so it's only sent once per session (no announcement in the
+// last PREVIEW_ANNOUNCE_GAP_MS). Kept in memory: after a restart the next
+// forward simply announces again.
+const PREVIEW_ANNOUNCE_GAP_MS = 10 * 60 * 1000; // 10 minutes
+let lastPreviewAnnouncementAt = 0;
+
+async function announcePreviewUpdateIfDue(botUsername: string): Promise<void> {
+  if (!isPreviewTrialConfigured()) return;
+  const now = Date.now();
+  if (now - lastPreviewAnnouncementAt < PREVIEW_ANNOUNCE_GAP_MS) return;
+  // Claim the slot before awaiting so two quick taps can't both announce.
+  lastPreviewAnnouncementAt = now;
+  const text = LANGUAGES.map((l) => `${l.flag} ${t(l.code, "preview_new_update")}`).join("\n");
+  try {
+    await bot.api.sendMessage(previewChannelIdParsed!, text, {
+      reply_markup: new InlineKeyboard().url(`🔑 ${toBoldUnicode("Join")}`, `https://t.me/${botUsername}`),
+    });
+  } catch (err) {
+    lastPreviewAnnouncementAt = 0; // allow a retry on the next forward
+    logger.error({ err }, "Failed to post new-update announcement in preview channel");
+  }
+}
+
 bot.callbackQuery(/^admin_fwd:(send|skip):(-?\w+):(\d+)$/, async (ctx) => {
   if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
   const action = ctx.match![1] as "send" | "skip";
@@ -311,6 +337,7 @@ bot.callbackQuery(/^admin_fwd:(send|skip):(-?\w+):(\d+)$/, async (ctx) => {
   }
 
   try {
+    await announcePreviewUpdateIfDue(ctx.me.username);
     await bot.api.copyMessage(previewChannelIdParsed!, sourceChatId, messageId);
     await ctx.answerCallbackQuery("Forwarded to Preview ✅");
     try {
