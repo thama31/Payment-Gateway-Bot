@@ -29,8 +29,6 @@ const id: Dict = {
     "⏳ Masa trial preview kamu udah pernah dipakai dan sudah berakhir.\n\nLangsung JOIN channel utama aja biar akses full & nggak keputus-putus lagi 🔥",
   preview_kicked_cta:
     "⏰ <b>Masa preview kamu udah habis!</b>\n\nKamu udah otomatis dikeluarkan dari channel preview. Kalau kamu suka sama isinya, langsung JOIN channel utama sekarang biar akses full & nggak hilang lagi 🔥",
-  preview_new_update:
-    "🔥 Ada update baru di channel utama! Join sekarang buat lihat semuanya.",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Dukungan",
   btn_language: "🌐 Ubah Bahasa",
@@ -99,8 +97,6 @@ const en: Dict = {
     "⏳ Your preview trial has already been used and has ended.\n\nJOIN the main channel now for full, uninterrupted access 🔥",
   preview_kicked_cta:
     "⏰ <b>Your preview trial has ended!</b>\n\nYou've been automatically removed from the preview channel. If you liked what you saw, JOIN the main channel now for full access 🔥",
-  preview_new_update:
-    "🔥 New update just dropped in the main channel! Join now to see everything.",
   btn_status: "📊 My Subscription",
   btn_help: "❓ Help & Support",
   btn_language: "🌐 Change Language",
@@ -169,8 +165,6 @@ const my: Dict = {
     "⏳ Tempoh percubaan preview anda sudah digunakan dan telah tamat.\n\nJOIN saluran utama sekarang untuk akses penuh tanpa gangguan 🔥",
   preview_kicked_cta:
     "⏰ <b>Tempoh preview anda telah tamat!</b>\n\nAnda telah dikeluarkan secara automatik dari saluran preview. Jika anda suka apa yang anda lihat, JOIN saluran utama sekarang untuk akses penuh 🔥",
-  preview_new_update:
-    "🔥 Ada kemas kini baharu di saluran utama! Sertai sekarang untuk lihat semuanya.",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Sokongan",
   btn_language: "🌐 Tukar Bahasa",
@@ -239,8 +233,6 @@ const ar: Dict = {
     "⏳ لقد استخدمت بالفعل فترة المعاينة التجريبية وانتهت.\n\nانضم إلى القناة الرئيسية الآن للحصول على وصول كامل دون انقطاع 🔥",
   preview_kicked_cta:
     "⏰ <b>انتهت فترة المعاينة التجريبية الخاصة بك!</b>\n\nتمت إزالتك تلقائياً من قناة المعاينة. إذا أعجبك ما رأيته، انضم إلى القناة الرئيسية الآن للحصول على وصول كامل 🔥",
-  preview_new_update:
-    "🔥 تحديث جديد في القناة الرئيسية! انضم الآن لمشاهدة كل المحتوى.",
   btn_status: "📊 اشتراكي",
   btn_help: "❓ المساعدة والدعم",
   btn_language: "🌐 تغيير اللغة",

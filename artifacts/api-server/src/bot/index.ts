@@ -241,111 +241,166 @@ bot.use(session({
   storage: new PostgresSessionStorage(),
 }));
 
-// New post in either main channel (primary or bonus) → DM the admin a copy
-// with Forward/Skip buttons, so they can curate exactly which items get
-// teased in the preview/trial channel. The two channels post on independent,
-// unpredictable schedules, so both are watched separately.
-const MAIN_SOURCE_CHANNEL_IDS: (number | string)[] = [channelIdParsed, BONUS_CHANNEL_ID];
+// ---------------------------------------------------------------------------
+// Curated forwarding to the preview channel
+//
+// New posts in either main channel (primary or bonus) are collected per
+// "session" (posts less than SESSION_GAP_MS apart). Only the first
+// PREVIEW_FORWARD_ITEM_LIMIT posts of a session are considered. Once they're
+// in (or after SINGLE_ITEM_WAIT_MS if only one arrived) the admin gets ONE
+// message with a text summary and a Yes / No button, instead of a prompt per
+// post. The two channels post on independent schedules, so each one has its
+// own session. State lives in memory; a restart just starts a fresh session.
+//
+// On Yes, the preview channel gets "Attention!!!", then the items, with the
+// Join button attached under the last item.
+// ---------------------------------------------------------------------------
+const PREVIEW_FORWARD_ITEM_LIMIT = 2;
+const SESSION_GAP_MS = 10 * 60 * 1000; // 10 min without posts = new session
+const SINGLE_ITEM_WAIT_MS = 3 * 60 * 1000; // how long to wait for a 2nd item
 
-// A single "drop" can contain 10+ posts in quick succession. Only the first
-// few get a Forward/Skip prompt — the rest are skipped automatically so the
-// admin isn't stuck dismissing a dozen prompts per batch. Posts separated by
-// more than BATCH_GAP_MS are treated as a new batch (counter resets).
-const BATCH_PROMPT_LIMIT = 4;
-const BATCH_GAP_MS = 10 * 60 * 1000; // 10 minutes
-const channelPostBatchState = new Map<string, { count: number; lastPostAt: number }>();
+interface ForwardSession {
+  lastPostAt: number;
+  prompted: boolean;
+  items: { messageId: number; label: string }[];
+  timer: ReturnType<typeof setTimeout> | null;
+}
+const forwardSessions = new Map<number, ForwardSession>();
 
-function shouldPromptForPost(chatId: number | string): boolean {
-  const key = String(chatId);
-  const now = Date.now();
-  const state = channelPostBatchState.get(key);
-  if (!state || now - state.lastPostAt > BATCH_GAP_MS) {
-    channelPostBatchState.set(key, { count: 1, lastPostAt: now });
-    return true;
+function escapeHtmlText(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+type ChannelPostMsg = NonNullable<BotContext["channelPost"]>;
+
+// One-line text description of a post for the admin prompt, e.g.
+// 🖼 Photo · "Produk A, ready stock..."
+function describePost(post: ChannelPostMsg): string {
+  let kind = "📎 Post";
+  if (post.photo) kind = "🖼 Photo";
+  else if (post.video) kind = "🎬 Video";
+  else if (post.animation) kind = "🎞 GIF";
+  else if (post.document) kind = "📄 File";
+  else if (post.audio) kind = "🎵 Audio";
+  else if (post.voice) kind = "🎤 Voice";
+  else if (post.text) kind = "📝 Text";
+  const raw = (post.caption ?? post.text ?? "").replace(/\s+/g, " ").trim();
+  const snippet = raw.length > 40 ? `${raw.slice(0, 40)}...` : raw;
+  return snippet ? `${kind} · "${escapeHtmlText(snippet)}"` : kind;
+}
+
+async function sendForwardPrompt(chatId: number): Promise<void> {
+  const session = forwardSessions.get(chatId);
+  if (!session || session.prompted || session.items.length === 0) return;
+  session.prompted = true;
+  if (session.timer) {
+    clearTimeout(session.timer);
+    session.timer = null;
   }
-  state.lastPostAt = now;
-  if (state.count >= BATCH_PROMPT_LIMIT) return false;
-  state.count++;
-  return true;
+
+  const sourceName = String(chatId) === String(BONUS_CHANNEL_ID) ? "Bonus channel" : "Main channel";
+  const numberEmoji = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"];
+  const lines = session.items.map((it, i) => `${numberEmoji[i] ?? `${i + 1}.`} ${it.label}`);
+  const count = session.items.length;
+  const text =
+    `📤 <b>Forward to Preview?</b>\n\nFrom: ${sourceName}\n` +
+    `${count} new ${count === 1 ? "item" : "items"}:\n${lines.join("\n")}`;
+
+  // Message IDs travel in the button data, so the prompt keeps working
+  // even after a restart (Telegram limits callback data to 64 bytes).
+  const ids = session.items.map((it) => it.messageId).join(":");
+  const keyboard = new InlineKeyboard()
+    .text("✅ Yes, forward", `fwd2:yes:${chatId}:${ids}`)
+    .text("❌ No", `fwd2:no:${chatId}:${ids}`);
+
+  try {
+    await bot.api.sendMessage(ADMIN_ID, text, { parse_mode: "HTML", reply_markup: keyboard });
+  } catch (err) {
+    logger.error({ err }, "Failed to DM the admin the forward prompt");
+  }
 }
 
 bot.on("channel_post", async (ctx) => {
   if (!isPreviewTrialConfigured()) return;
   const post = ctx.channelPost;
   if (!post) return;
-  const sourceChatId = MAIN_SOURCE_CHANNEL_IDS.find((id) => String(id) === String(post.chat.id));
-  if (!sourceChatId) return;
-  if (!shouldPromptForPost(sourceChatId)) return;
+  const chatId = post.chat.id;
+  const isSource = String(chatId) === String(channelIdParsed) || String(chatId) === String(BONUS_CHANNEL_ID);
+  if (!isSource) return;
 
-  const fwdKeyboard = new InlineKeyboard()
-    .text("✅ Forward to Preview", `admin_fwd:send:${sourceChatId}:${post.message_id}`)
-    .text("❌ Skip", `admin_fwd:skip:${sourceChatId}:${post.message_id}`);
+  const now = Date.now();
+  let session = forwardSessions.get(chatId);
+  if (!session || now - session.lastPostAt > SESSION_GAP_MS) {
+    if (session?.timer) clearTimeout(session.timer);
+    session = { lastPostAt: now, prompted: false, items: [], timer: null };
+    forwardSessions.set(chatId, session);
+  }
+  session.lastPostAt = now;
 
-  try {
-    await bot.api.copyMessage(ADMIN_ID, sourceChatId, post.message_id, {
-      reply_markup: fwdKeyboard,
-    });
-  } catch (err) {
-    logger.error({ err }, "Failed to DM admin about new main-channel post");
+  // Posts after the first few are ignored, but they keep the session alive
+  // so a long drop of 10+ posts still counts as one session.
+  if (session.prompted || session.items.length >= PREVIEW_FORWARD_ITEM_LIMIT) return;
+
+  session.items.push({ messageId: post.message_id, label: describePost(post) });
+
+  if (session.items.length >= PREVIEW_FORWARD_ITEM_LIMIT) {
+    await sendForwardPrompt(chatId);
+  } else if (!session.timer) {
+    session.timer = setTimeout(() => {
+      void sendForwardPrompt(chatId);
+    }, SINGLE_ITEM_WAIT_MS);
   }
 });
 
-// When the admin forwards content to the preview channel, also post a short
-// "new update" heads-up there so they don't have to type one. Forwarding
-// several items in a row would otherwise produce several identical
-// announcements, so it's only sent once per session (no announcement in the
-// last PREVIEW_ANNOUNCE_GAP_MS). Kept in memory: after a restart the next
-// forward simply announces again.
-const PREVIEW_ANNOUNCE_GAP_MS = 10 * 60 * 1000; // 10 minutes
-let lastPreviewAnnouncementAt = 0;
-
-async function announcePreviewUpdateIfDue(botUsername: string): Promise<void> {
-  if (!isPreviewTrialConfigured()) return;
-  const now = Date.now();
-  if (now - lastPreviewAnnouncementAt < PREVIEW_ANNOUNCE_GAP_MS) return;
-  // Claim the slot before awaiting so two quick taps can't both announce.
-  lastPreviewAnnouncementAt = now;
-  const text = LANGUAGES.map((l) => `${l.flag} ${t(l.code, "preview_new_update")}`).join("\n");
-  try {
-    await bot.api.sendMessage(previewChannelIdParsed!, text, {
-      reply_markup: new InlineKeyboard().url(`🔑 ${toBoldUnicode("Join")}`, `https://t.me/${botUsername}`),
-    });
-  } catch (err) {
-    lastPreviewAnnouncementAt = 0; // allow a retry on the next forward
-    logger.error({ err }, "Failed to post new-update announcement in preview channel");
-  }
-}
-
-bot.callbackQuery(/^admin_fwd:(send|skip):(-?\w+):(\d+)$/, async (ctx) => {
+bot.callbackQuery(/^fwd2:(yes|no):(-?\d+):(\d+)(?::(\d+))?$/, async (ctx) => {
   if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
-  const action = ctx.match![1] as "send" | "skip";
-  const sourceChatIdRaw = ctx.match![2]!;
-  const sourceChatId: number | string = /^-?\d+$/.test(sourceChatIdRaw) ? Number(sourceChatIdRaw) : sourceChatIdRaw;
-  const messageId = Number(ctx.match![3]);
+  const action = ctx.match![1] as "yes" | "no";
+  const sourceChatId = Number(ctx.match![2]);
+  const messageIds = [ctx.match![3], ctx.match![4]]
+    .filter((x): x is string => Boolean(x))
+    .map(Number);
 
-  if (action === "skip") {
+  // Remove the buttons right away so a double tap can't forward twice.
+  try {
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+  } catch (_) {}
+
+  if (action === "no") {
     await ctx.answerCallbackQuery("Skipped");
-    try {
-      await ctx.editMessageReplyMarkup({ reply_markup: undefined });
-    } catch (_) {}
+    await ctx.editMessageText("❌ Skipped.").catch(() => {});
     return;
   }
-
   if (!isPreviewTrialConfigured()) {
     await ctx.answerCallbackQuery("Preview channel isn't configured");
     return;
   }
+  await ctx.answerCallbackQuery("Forwarding…");
 
+  let forwarded = 0;
   try {
-    await announcePreviewUpdateIfDue(ctx.me.username);
-    await bot.api.copyMessage(previewChannelIdParsed!, sourceChatId, messageId);
-    await ctx.answerCallbackQuery("Forwarded to Preview ✅");
-    try {
-      await ctx.editMessageReplyMarkup({ reply_markup: undefined });
-    } catch (_) {}
+    await bot.api.sendMessage(previewChannelIdParsed!, "Attention!!!");
+    const joinKeyboard = new InlineKeyboard().url(
+      `🔑 ${toBoldUnicode("Join")}`,
+      `https://t.me/${ctx.me.username}`
+    );
+    for (let i = 0; i < messageIds.length; i++) {
+      const isLast = i === messageIds.length - 1;
+      await bot.api.copyMessage(
+        previewChannelIdParsed!,
+        sourceChatId,
+        messageIds[i]!,
+        isLast ? { reply_markup: joinKeyboard } : undefined
+      );
+      forwarded++;
+    }
+    await ctx
+      .editMessageText(`✅ Forwarded ${forwarded} ${forwarded === 1 ? "item" : "items"} to Preview.`)
+      .catch(() => {});
   } catch (err) {
-    logger.error({ err }, "Failed to forward post to preview channel");
-    await ctx.answerCallbackQuery("Failed to forward, check logs");
+    logger.error({ err }, "Failed to forward posts to preview channel");
+    await ctx
+      .editMessageText(`⚠️ Forwarding failed after ${forwarded} of ${messageIds.length} item(s). Check the logs.`)
+      .catch(() => {});
   }
 });
 
