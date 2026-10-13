@@ -1,8 +1,8 @@
 import { Bot, InlineKeyboard, InputFile, type Context, session, type SessionFlavor, type StorageAdapter } from "grammy";
 import path from "node:path";
 import fs from "node:fs";
-import { db, pool, usersTable, subscriptionsTable, paymentProofsTable, previewAccessTable } from "@workspace/db";
-import { eq, and, desc, sql, gt, isNull, or, lte } from "drizzle-orm";
+import { db, pool, usersTable, subscriptionsTable, paymentProofsTable, previewAccessTable, type PreviewAccess } from "@workspace/db";
+import { eq, and, desc, sql, gt, isNull, or, lte, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { LANGUAGES, t, type Lang } from "./i18n";
 import { PLANS, PAYMENT_METHODS, findPlanById, type Region, type PlanKey, type Plan } from "./plans";
@@ -1554,6 +1554,252 @@ bot.callbackQuery(/^preview_reset:(confirm|cancel)$/, async (ctx) => {
       { parse_mode: "HTML" }
     );
   })().catch((err) => logger.error({ err }, "Preview trial reset crashed"));
+});
+
+// ---------------------------------------------------------------------------
+// /preview_members — who is actually inside the preview channel right now?
+//
+// The Bot API can't list a channel's members, only look up one user at a time
+// (getChatMember). So this checks every user the bot has a record of and
+// buckets the ones that are really inside:
+//   overdue  — trial is over (or already marked kicked) but they're still in
+//   active   — still within their trial window
+//   unknown  — inside, but the bot never recorded when they joined, so the
+//              hourly check would never remove them
+// People who joined through some other link aren't tracked and can't be seen.
+// ---------------------------------------------------------------------------
+interface PreviewEntry {
+  telegramId: number;
+  name: string;
+  row: PreviewAccess;
+}
+interface PreviewScan {
+  overdue: PreviewEntry[];
+  active: PreviewEntry[];
+  unknown: PreviewEntry[];
+  unchecked: number;
+}
+
+function escapeUserText(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function formatDuration(ms: number): string {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  if (totalMin >= 2880) return `${Math.floor(totalMin / 1440)}d ${Math.floor((totalMin % 1440) / 60)}h`;
+  if (totalMin >= 60) return `${Math.floor(totalMin / 60)}h ${String(totalMin % 60).padStart(2, "0")}m`;
+  return `${totalMin}m`;
+}
+
+// true = inside, false = not inside (left / banned / an admin), null = couldn't check
+async function isInsidePreviewChannel(telegramId: number): Promise<boolean | null> {
+  try {
+    const m = await bot.api.getChatMember(previewChannelIdParsed!, telegramId);
+    if (m.status === "member") return true;
+    if (m.status === "restricted") return m.is_member;
+    return false;
+  } catch (err) {
+    logger.warn({ err, telegramId }, "getChatMember failed during preview scan");
+    return null;
+  }
+}
+
+async function scanPreviewChannel(): Promise<PreviewScan> {
+  const rows = await db.select().from(previewAccessTable).orderBy(desc(previewAccessTable.invitedAt));
+  const latest = new Map<number, PreviewAccess>();
+  for (const r of rows) {
+    const key = Number(r.telegramId);
+    if (!latest.has(key)) latest.set(key, r);
+  }
+  const ids = [...latest.keys()];
+  const users = ids.length ? await db.select().from(usersTable).where(inArray(usersTable.telegramId, ids)) : [];
+  const nameById = new Map<number, string>(
+    users.map((u) => [Number(u.telegramId), u.username ? `@${u.username}` : (u.firstName ?? "")])
+  );
+
+  const scan: PreviewScan = { overdue: [], active: [], unknown: [], unchecked: 0 };
+  const now = Date.now();
+  for (const [telegramId, row] of latest) {
+    const inside = await isInsidePreviewChannel(telegramId);
+    await new Promise((resolve) => setTimeout(resolve, 60)); // stay well under Telegram's rate limits
+    if (inside === null) {
+      scan.unchecked++;
+      continue;
+    }
+    if (!inside) continue;
+
+    const entry: PreviewEntry = { telegramId, name: nameById.get(telegramId) ?? "", row };
+    const timeIsUp = row.joinedAt && row.expiresAt && row.expiresAt.getTime() <= now;
+    if (row.kicked || timeIsUp) scan.overdue.push(entry);
+    else if (row.joinedAt && row.expiresAt) scan.active.push(entry);
+    else scan.unknown.push(entry);
+  }
+  // Longest overdue first; soonest-to-expire first; oldest invite first.
+  const joined = (e: PreviewEntry) => e.row.joinedAt?.getTime() ?? Infinity;
+  scan.overdue.sort((a, b) => joined(a) - joined(b));
+  scan.active.sort((a, b) => (a.row.expiresAt?.getTime() ?? 0) - (b.row.expiresAt?.getTime() ?? 0));
+  scan.unknown.sort((a, b) => a.row.invitedAt.getTime() - b.row.invitedAt.getTime());
+  return scan;
+}
+
+function describePreviewMember(e: PreviewEntry, kind: "overdue" | "active" | "unknown", now: number): string {
+  const who = `${escapeUserText(e.name || "—")} (<code>${e.telegramId}</code>)`;
+  const r = e.row;
+  if (kind === "overdue") {
+    const parts: string[] = [];
+    if (r.joinedAt) parts.push(`in for ${formatDuration(now - r.joinedAt.getTime())}`);
+    if (r.expiresAt && r.expiresAt.getTime() <= now) parts.push(`over by ${formatDuration(now - r.expiresAt.getTime())}`);
+    if (r.kicked) parts.push("marked kicked but still inside");
+    return `${r.kicked ? "🚨" : "⚠️"} ${who} — ${parts.join(" · ")}`;
+  }
+  if (kind === "active") {
+    return `✅ ${who} — in for ${formatDuration(now - r.joinedAt!.getTime())} · ${formatDuration(r.expiresAt!.getTime() - now)} left`;
+  }
+  return `❓ ${who} — join time unknown · invited ${formatDuration(now - r.invitedAt.getTime())} ago`;
+}
+
+async function sendPreviewScanReport(scan: PreviewScan): Promise<void> {
+  const now = Date.now();
+  const lines: string[] = [];
+  const addSection = (title: string, entries: PreviewEntry[], kind: "overdue" | "active" | "unknown") => {
+    if (entries.length === 0) return;
+    if (lines.length) lines.push("");
+    lines.push(`<b>${title} (${entries.length})</b>`);
+    for (const e of entries) lines.push(describePreviewMember(e, kind, now));
+  };
+  addSection("Over time / should be gone", scan.overdue, "overdue");
+  addSection(`Within ${PREVIEW_TRIAL_HOURS}h`, scan.active, "active");
+  addSection("Join time unknown", scan.unknown, "unknown");
+
+  // Telegram caps a message at 4096 chars, so split long lists on line breaks.
+  const chunks: string[] = [];
+  let current = "";
+  for (const line of lines) {
+    if (current && current.length + line.length + 1 > 3800) {
+      chunks.push(current);
+      current = "";
+    }
+    current += (current ? "\n" : "") + line;
+  }
+  if (current) chunks.push(current);
+  for (const chunk of chunks) {
+    await bot.api.sendMessage(ADMIN_ID, chunk, { parse_mode: "HTML" });
+  }
+
+  const inside = scan.overdue.length + scan.active.length + scan.unknown.length;
+  const summary = [
+    "📊 <b>Preview channel check</b>",
+    "",
+    inside === 0
+      ? "Nobody the bot has a record of is inside the channel right now."
+      : `Inside: <b>${inside}</b> · ⚠️ over time: <b>${scan.overdue.length}</b> · ✅ active: <b>${scan.active.length}</b> · ❓ unknown: <b>${scan.unknown.length}</b>`,
+  ];
+  if (scan.unchecked) summary.push(`Couldn't check ${scan.unchecked} user(s), see logs.`);
+  summary.push(
+    "",
+    "<i>Only people the bot has a record of can be checked. Anyone who joined through another link isn't visible here — look for them in the channel's subscriber list.</i>"
+  );
+
+  const keyboard = new InlineKeyboard();
+  if (scan.overdue.length) keyboard.text(`🚫 Kick ${scan.overdue.length} over time`, "prevmem:kick").row();
+  if (scan.unknown.length) keyboard.text(`⏱ Start ${PREVIEW_TRIAL_HOURS}h timer for ${scan.unknown.length} unknown`, "prevmem:timer").row();
+
+  await bot.api.sendMessage(ADMIN_ID, summary.join("\n"), {
+    parse_mode: "HTML",
+    reply_markup: scan.overdue.length || scan.unknown.length ? keyboard : undefined,
+  });
+}
+
+// Remove someone from the preview channel for good (same permanent ban the
+// hourly check uses) and tell them, unless they were already told earlier.
+// Unlike the hourly check this does NOT swallow a failed ban: it returns
+// false so the admin can see it didn't work.
+async function kickPreviewUserNow(telegramId: number): Promise<boolean> {
+  try {
+    await bot.api.banChatMember(previewChannelIdParsed!, telegramId);
+  } catch (err) {
+    logger.error({ err, telegramId }, "Manual preview kick failed");
+    return false;
+  }
+  const updated = await db
+    .update(previewAccessTable)
+    .set({ kicked: true, kickedAt: new Date() })
+    .where(and(eq(previewAccessTable.telegramId, telegramId), eq(previewAccessTable.kicked, false)))
+    .returning({ id: previewAccessTable.id });
+
+  if (updated.length > 0) {
+    try {
+      const userRow = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+      const userLang = (userRow[0]?.language as Lang) ?? "id";
+      await bot.api.sendMessage(telegramId, t(userLang, "preview_kicked_cta"), {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text(t(userLang, "btn_join"), "menu:plans"),
+      });
+    } catch (err) {
+      logger.warn({ err, telegramId }, "Couldn't notify manually kicked preview user");
+    }
+  }
+  return true;
+}
+
+bot.command("preview_members", async (ctx) => {
+  if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
+  if (!isPreviewTrialConfigured()) {
+    await ctx.reply("⚠️ TELEGRAM_PREVIEW_CHANNEL_ID isn't set, preview trial tracking is disabled.");
+    return;
+  }
+  await ctx.reply("🔍 Checking who is still inside the preview channel… with a long list this can take a minute.");
+  // Run detached so a long scan doesn't hold up other updates.
+  void (async () => {
+    await sendPreviewScanReport(await scanPreviewChannel());
+  })().catch(async (err) => {
+    logger.error({ err }, "Preview members scan failed");
+    await bot.api.sendMessage(ADMIN_ID, "⚠️ The check failed, see the logs.").catch(() => {});
+  });
+});
+
+bot.callbackQuery(/^prevmem:(kick|timer)$/, async (ctx) => {
+  if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
+  const action = ctx.match![1] as "kick" | "timer";
+  // Drop the buttons right away so a double tap can't run it twice.
+  try {
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+  } catch (_) {}
+  if (!isPreviewTrialConfigured()) {
+    await ctx.answerCallbackQuery("Preview channel isn't configured");
+    return;
+  }
+  await ctx.answerCallbackQuery(action === "kick" ? "Kicking…" : "Starting timers…");
+
+  void (async () => {
+    // Scan again instead of trusting the list the admin was looking at.
+    const scan = await scanPreviewChannel();
+    if (action === "kick") {
+      let kicked = 0;
+      let failed = 0;
+      for (const e of scan.overdue) {
+        if (await kickPreviewUserNow(e.telegramId)) kicked++;
+        else failed++;
+        await new Promise((resolve) => setTimeout(resolve, 60));
+      }
+      await bot.api.sendMessage(
+        ADMIN_ID,
+        `✅ <b>Kick finished</b>\n\nRemoved: <b>${kicked}</b>${failed ? `\nFailed: <b>${failed}</b> (see logs)` : ""}`,
+        { parse_mode: "HTML" }
+      );
+    } else {
+      const joinedAt = new Date();
+      const expiresAt = new Date(joinedAt.getTime() + PREVIEW_TRIAL_HOURS * 60 * 60 * 1000);
+      for (const e of scan.unknown) {
+        await db.update(previewAccessTable).set({ joinedAt, expiresAt }).where(eq(previewAccessTable.id, e.row.id));
+      }
+      await bot.api.sendMessage(
+        ADMIN_ID,
+        `⏱ Started the ${PREVIEW_TRIAL_HOURS}h timer for <b>${scan.unknown.length}</b> user(s). The hourly check will remove them when it runs out.`,
+        { parse_mode: "HTML" }
+      );
+    }
+  })().catch((err) => logger.error({ err }, "Preview members action failed"));
 });
 
 bot.command("broadcast", async (ctx) => {
