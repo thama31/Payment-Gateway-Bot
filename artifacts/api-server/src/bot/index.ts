@@ -52,6 +52,15 @@ function previewDurationLabel(lang: Lang): string {
   return `${PREVIEW_TRIAL_HOURS} jam`;
 }
 
+// Shown before the preview channel link: a short YouTube tutorial for people
+// whose Telegram doesn't show the channel after joining. Overridable with the
+// PREVIEW_TUTORIAL_URL env var if the video ever changes.
+const PREVIEW_TUTORIAL_URL = process.env["PREVIEW_TUTORIAL_URL"] ?? "https://www.youtube.com/watch?v=ferazL0f9wM";
+
+async function sendPreviewTutorialWarning(ctx: BotContext, lang: Lang): Promise<void> {
+  await ctx.reply(t(lang, "preview_tutorial_warning", { url: PREVIEW_TUTORIAL_URL }), { parse_mode: "HTML" });
+}
+
 function isBonusEligible(planKey: PlanKey): boolean {
   return planKey === "monthly" || planKey === "permanent";
 }
@@ -411,6 +420,7 @@ bot.callbackQuery("preview:request", async (ctx) => {
   const telegramId = ctx.from.id;
 
   if (!isPreviewTrialConfigured()) {
+    await sendPreviewTutorialWarning(ctx, lang);
     await ctx.reply(`👁 ${PREVIEW_LINK}`, { link_preview_options: { is_disabled: true } });
     return;
   }
@@ -443,6 +453,7 @@ bot.callbackQuery("preview:request", async (ctx) => {
     }
     if (!row.joinedAt && row.inviteLink) {
       // Already has a pending, unused invite — resend it instead of creating a new one.
+      await sendPreviewTutorialWarning(ctx, lang);
       await ctx.reply(
         t(lang, "preview_granted", { link: row.inviteLink, duration: previewDurationLabel(lang) }),
         { parse_mode: "HTML", link_preview_options: { is_disabled: true } }
@@ -466,6 +477,7 @@ bot.callbackQuery("preview:request", async (ctx) => {
 
   await db.insert(previewAccessTable).values({ telegramId, inviteLink });
 
+  await sendPreviewTutorialWarning(ctx, lang);
   await ctx.reply(
     t(lang, "preview_granted", { link: inviteLink, duration: previewDurationLabel(lang) }),
     { parse_mode: "HTML", link_preview_options: { is_disabled: true } }

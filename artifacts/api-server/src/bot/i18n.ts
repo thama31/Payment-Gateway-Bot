@@ -29,6 +29,8 @@ const id: Dict = {
     "⏳ Masa trial preview kamu udah pernah dipakai dan sudah berakhir.\n\nLangsung JOIN channel utama aja biar akses full & nggak keputus-putus lagi 🔥",
   preview_kicked_cta:
     "⏰ <b>Masa preview kamu udah habis!</b>\n\nKamu udah otomatis dikeluarkan dari channel preview. Kalau kamu suka sama isinya, langsung JOIN channel utama sekarang biar akses full & nggak hilang lagi 🔥",
+  preview_tutorial_warning:
+    "⚠️ <b>PENTING — Baca Dulu Sebelum Join!</b>\n\nSebelum klik link channel trial, tonton tutorial singkat ini dulu ya.\n\nKalau channel-nya tidak muncul di Telegram kamu, tutorial di bawah ini mungkin bisa membantu mengatasinya.\n\n▶️ <b>Tonton Tutorialnya di Sini:</b>\n{url}\n\nSetelah menonton tutorial, klik lagi link channel trial-nya dan selamat menikmati! ❤️",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Dukungan",
   btn_language: "🌐 Ubah Bahasa",
@@ -97,6 +99,8 @@ const en: Dict = {
     "⏳ Your preview trial has already been used and has ended.\n\nJOIN the main channel now for full, uninterrupted access 🔥",
   preview_kicked_cta:
     "⏰ <b>Your preview trial has ended!</b>\n\nYou've been automatically removed from the preview channel. If you liked what you saw, JOIN the main channel now for full access 🔥",
+  preview_tutorial_warning:
+    "⚠️ <b>IMPORTANT — Please Read Before Joining!</b>\n\nBefore clicking the trial channel link, please watch this short tutorial first.\n\nIf the channel doesn't appear on your Telegram, the tutorial below may help you fix the issue.\n\n▶️ <b>Watch the Tutorial Here:</b>\n{url}\n\nAfter watching the tutorial, click the trial channel link again and enjoy! ❤️",
   btn_status: "📊 My Subscription",
   btn_help: "❓ Help & Support",
   btn_language: "🌐 Change Language",
@@ -165,6 +169,8 @@ const my: Dict = {
     "⏳ Tempoh percubaan preview anda sudah digunakan dan telah tamat.\n\nJOIN saluran utama sekarang untuk akses penuh tanpa gangguan 🔥",
   preview_kicked_cta:
     "⏰ <b>Tempoh preview anda telah tamat!</b>\n\nAnda telah dikeluarkan secara automatik dari saluran preview. Jika anda suka apa yang anda lihat, JOIN saluran utama sekarang untuk akses penuh 🔥",
+  preview_tutorial_warning:
+    "⚠️ <b>PENTING — Baca Dahulu Sebelum Sertai!</b>\n\nSebelum klik pautan saluran percubaan, sila tonton tutorial ringkas ini dahulu.\n\nJika saluran tidak muncul di Telegram anda, tutorial di bawah mungkin dapat membantu menyelesaikan masalah tersebut.\n\n▶️ <b>Tonton Tutorial di Sini:</b>\n{url}\n\nSelepas menonton tutorial, klik semula pautan saluran percubaan dan nikmati! ❤️",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Sokongan",
   btn_language: "🌐 Tukar Bahasa",
@@ -233,6 +239,8 @@ const ar: Dict = {
     "⏳ لقد استخدمت بالفعل فترة المعاينة التجريبية وانتهت.\n\nانضم إلى القناة الرئيسية الآن للحصول على وصول كامل دون انقطاع 🔥",
   preview_kicked_cta:
     "⏰ <b>انتهت فترة المعاينة التجريبية الخاصة بك!</b>\n\nتمت إزالتك تلقائياً من قناة المعاينة. إذا أعجبك ما رأيته، انضم إلى القناة الرئيسية الآن للحصول على وصول كامل 🔥",
+  preview_tutorial_warning:
+    "⚠️ <b>مهم — يرجى القراءة قبل الانضمام!</b>\n\nقبل الضغط على رابط قناة التجربة، يرجى مشاهدة هذا الشرح القصير أولاً.\n\nإذا لم تظهر القناة في تيليجرام لديك، فقد يساعدك الشرح أدناه في حل المشكلة.\n\n▶️ <b>شاهد الشرح هنا:</b>\n{url}\n\nبعد مشاهدة الشرح، اضغط على رابط قناة التجربة مرة أخرى واستمتع! ❤️",
   btn_status: "📊 اشتراكي",
   btn_help: "❓ المساعدة والدعم",
   btn_language: "🌐 تغيير اللغة",
