@@ -55,7 +55,7 @@ const id: Dict = {
   payment_details:
     "{details}\n\n📸 Setelah transfer, <b>kirim screenshot bukti transfer</b> ke chat ini. Admin akan verifikasi & aktifkan langganan kamu.",
   checkout_ready_paddle:
-    "🧾 Ini checkout <b>{plan} — {price}</b> kamu.\n\nSetelah pembayaran selesai, invite link kamu bakal otomatis masuk ke chat ini.",
+    "🧾 Ini checkout <b>{plan} — {price}</b> kamu.\n\nSetelah pembayaran selesai, invite link kamu bakal otomatis masuk ke chat ini.\n\n<i>Pajak dapat ditambahkan saat checkout, tergantung negara kamu.</i>",
   btn_open_payment: "Open payment page →",
   awaiting_proof:
     "⏳ Silakan kirim <b>foto bukti pembayaran</b> sekarang untuk paket {plan} ({price}) via {method}.",
@@ -125,7 +125,7 @@ const en: Dict = {
   payment_details:
     "{details}\n\n📸 After you've paid, <b>send a screenshot of your payment proof</b> to this chat. The admin will verify & activate your subscription.",
   checkout_ready_paddle:
-    "🧾 Here's your <b>{plan} — {price}</b> checkout.\n\nOnce your payment is complete, your invite link will arrive in this chat.",
+    "🧾 Here's your <b>{plan} — {price}</b> checkout.\n\nOnce your payment is complete, your invite link will arrive in this chat.\n\n<i>Tax may be added at checkout, depending on your country.</i>",
   btn_open_payment: "Open payment page →",
   awaiting_proof:
     "⏳ Please send the <b>payment proof photo</b> now for {plan} plan ({price}) via {method}.",
@@ -195,7 +195,7 @@ const my: Dict = {
   payment_details:
     "{details}\n\n📸 Selepas bayar, <b>hantar tangkapan skrin bukti pembayaran</b> ke sembang ini. Admin akan mengesahkan & mengaktifkan langganan anda.",
   checkout_ready_paddle:
-    "🧾 Ini checkout <b>{plan} — {price}</b> anda.\n\nSelepas pembayaran selesai, pautan jemputan anda akan sampai secara automatik ke sembang ini.",
+    "🧾 Ini checkout <b>{plan} — {price}</b> anda.\n\nSelepas pembayaran selesai, pautan jemputan anda akan sampai secara automatik ke sembang ini.\n\n<i>Cukai mungkin dikenakan semasa pembayaran, bergantung pada negara anda.</i>",
   btn_open_payment: "Open payment page →",
   awaiting_proof:
     "⏳ Sila hantar <b>foto bukti pembayaran</b> sekarang untuk pakej {plan} ({price}) melalui {method}.",
@@ -265,7 +265,7 @@ const ar: Dict = {
   payment_details:
     "{details}\n\n📸 بعد الدفع، <b>أرسل لقطة شاشة لإثبات الدفع</b> في هذه المحادثة. سيقوم المسؤول بالتحقق وتفعيل اشتراكك.",
   checkout_ready_paddle:
-    "🧾 إليك تفاصيل الدفع <b>{plan} — {price}</b>.\n\nبمجرد اكتمال دفعتك، سيصلك رابط الدعوة تلقائياً في هذه المحادثة.",
+    "🧾 إليك تفاصيل الدفع <b>{plan} — {price}</b>.\n\nبمجرد اكتمال دفعتك، سيصلك رابط الدعوة تلقائياً في هذه المحادثة.\n\n<i>قد تُضاف الضريبة عند الدفع حسب بلدك.</i>",
   btn_open_payment: "Open payment page →",
   awaiting_proof:
     "⏳ يرجى إرسال <b>صورة إثبات الدفع</b> الآن لخطة {plan} ({price}) عبر {method}.",

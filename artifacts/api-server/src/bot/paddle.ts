@@ -24,12 +24,22 @@ export function isPaddleConfigured(): boolean {
   return Boolean(PADDLE_WEBHOOK_SECRET);
 }
 
+// Prices that were live before switching to tax-exclusive pricing. They are
+// no longer sold, but existing subscribers keep renewing on them, so payments
+// on these IDs must still be recognised (e.g. in admin notifications). Do not
+// archive them in Paddle.
+const LEGACY_PRICE_IDS: Record<string, PlanKey> = {
+  pri_01m255cqpq7r0y3a79yr089x40: "weekly",
+  pri_01m255t9mccqm820vyaya2k68f: "monthly",
+  pri_01m255wabdsnywfyfkhn0dv88j: "permanent",
+};
+
 /** Reverse lookup: which of our plans does this Paddle price ID belong to? */
 export function planKeyFromPriceId(priceId: string): PlanKey | null {
   for (const [key, id] of Object.entries(PADDLE_PRICE_IDS)) {
     if (id && id === priceId) return key as PlanKey;
   }
-  return null;
+  return LEGACY_PRICE_IDS[priceId] ?? null;
 }
 
 const PADDLE_API_BASE =
