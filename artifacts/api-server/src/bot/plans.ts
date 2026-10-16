@@ -60,8 +60,16 @@ export const PAYMENT_METHODS: Record<Region, { id: string; label: string; detail
   intl: [
     {
       id: "paddle",
-      label: "💳 Card / PayPal (via Paddle)",
+      label: "💳 Card / Apple Pay / Google Pay",
       details: "",
+    },
+    {
+      // Manual, like Wise: the buyer pays via paypal.me, sends a screenshot,
+      // and the admin verifies and approves it.
+      id: "paypal",
+      label: "PayPal",
+      details:
+        "Send via PayPal:\n📌 <b>paypal.me/prtm31</b>\n🔗 https://paypal.me/prtm31",
     },
     {
       id: "wise",
