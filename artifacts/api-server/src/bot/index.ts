@@ -5,7 +5,7 @@ import { db, pool, usersTable, subscriptionsTable, paymentProofsTable, previewAc
 import { eq, and, desc, sql, gt, isNull, or, lte, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { LANGUAGES, t, type Lang } from "./i18n";
-import { PLANS, PAYMENT_METHODS, findPlanById, type Region, type PlanKey, type Plan } from "./plans";
+import { PLANS, PAYMENT_METHODS, findPlanById, fillPlanDetails, type Region, type PlanKey, type Plan } from "./plans";
 import { createPaddleCheckoutUrl, isPaddleConfigured } from "./paddle";
 import { syncUsersToSheet, appendUserRow, syncSubscribersToSheet, syncPaymentsToSheet, appendSubscriberRow, appendPaymentRow } from "./sheets";
 
@@ -946,7 +946,7 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
     }
   );
 
-  const detailsText = t(lang, "payment_details", { details: method.details });
+  const detailsText = t(lang, "payment_details", { details: fillPlanDetails(method.details, plan) });
 
   if (methodId === "qris") {
     const qrisPath = path.resolve(__dirname, "../assets/qris.png");

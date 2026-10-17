@@ -40,6 +40,18 @@ export function findPlanById(planId: string): Plan | null {
   return null;
 }
 
+/**
+ * Fills the `{amount}` placeholder in a payment method's details with the
+ * plan's numeric price (e.g. "$20" -> "20"), so a link can carry the exact
+ * amount for the plan the buyer picked. Only the PayPal link uses it, and
+ * only the international region (USD prices); methods without the
+ * placeholder come back unchanged.
+ */
+export function fillPlanDetails(details: string, plan: Plan): string {
+  const amount = plan.price.replace(/[^0-9.]/g, "");
+  return details.replace(/\{amount\}/g, amount);
+}
+
 export const PAYMENT_METHODS: Record<Region, { id: string; label: string; details: string }[]> = {
   id: [
     {
@@ -68,8 +80,10 @@ export const PAYMENT_METHODS: Record<Region, { id: string; label: string; detail
       // and the admin verifies and approves it.
       id: "paypal",
       label: "PayPal",
+      // {amount} is replaced per plan (see fillPlanDetails), so the link opens
+      // with the right amount already filled in.
       details:
-        "Send via PayPal:\n📌 <b>paypal.me/prtm31</b>\n🔗 https://paypal.me/prtm31",
+        "Send via PayPal:\n🔗 https://paypal.me/prtm31/{amount}USD\n\n💰 Amount: <b>{amount} USD</b> (already filled in the link, please don't change it)",
     },
     {
       id: "wise",
