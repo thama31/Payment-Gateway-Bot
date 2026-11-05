@@ -5,7 +5,7 @@ import { db, pool, usersTable, subscriptionsTable, paymentProofsTable, previewAc
 import { eq, and, desc, sql, gt, isNull, or, lte, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { LANGUAGES, t, type Lang } from "./i18n";
-import { PLANS, PAYMENT_METHODS, findPlanById, fillPlanDetails, type Region, type PlanKey, type Plan } from "./plans";
+import { PLANS, PAYMENT_METHODS, PADDLE_WEBSITE_LABEL, findPlanById, fillPlanDetails, type Region, type PlanKey, type Plan } from "./plans";
 import { createPaddleCheckoutUrl, isPaddleConfigured } from "./paddle";
 import { syncUsersToSheet, appendUserRow, syncSubscribersToSheet, syncPaymentsToSheet, appendSubscriberRow, appendPaymentRow } from "./sheets";
 
@@ -113,7 +113,8 @@ interface GrantSubscriptionResult {
 async function grantSubscriptionAccess(
   telegramId: number,
   plan: Plan,
-  refId: number | string
+  refId: number | string,
+  options: { includeBonus?: boolean } = {}
 ): Promise<GrantSubscriptionResult> {
   const userRow = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
   const userLang = (userRow[0]?.language as Lang) ?? "id";
@@ -178,7 +179,7 @@ async function grantSubscriptionAccess(
   }
 
   let bonusInviteLink: string | null = null;
-  if (isBonusEligible(plan.key)) {
+  if (isBonusEligible(plan.key) && options.includeBonus !== false) {
     bonusInviteLink = await createBonusInviteLink(expiresAt, typeof refId === "number" ? refId : 0);
     if (bonusInviteLink) {
       try {
@@ -686,9 +687,12 @@ function plansKeyboard(lang: Lang, region: Region): InlineKeyboard {
 
 function paymentKeyboard(lang: Lang, planId: string, region: Region): InlineKeyboard {
   const kb = new InlineKeyboard();
-  PAYMENT_METHODS[region].forEach((m) => {
-    kb.text(m.label, `pay:${planId}:${m.id}`).row();
-  });
+  const planKey = findPlanById(planId)?.key;
+  PAYMENT_METHODS[region]
+    .filter((m) => !m.plans || (planKey !== undefined && m.plans.includes(planKey)))
+    .forEach((m) => {
+      kb.text(m.label, `pay:${planId}:${m.id}`).row();
+    });
   kb.text(t(lang, "btn_back"), "menu:plans");
   return kb;
 }
@@ -908,6 +912,7 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
   if (!plan) return ctx.answerCallbackQuery("Invalid");
   const method = PAYMENT_METHODS[plan.region].find((m) => m.id === methodId);
   if (!method) return ctx.answerCallbackQuery("Invalid method");
+  if (method.plans && !method.plans.includes(plan.key)) return ctx.answerCallbackQuery("Invalid method");
   await ctx.answerCallbackQuery();
 
   if (methodId === "paddle") {
@@ -1138,6 +1143,10 @@ bot.on("message:photo", async (ctx) => {
     ? `<a href="https://t.me/${ctx.from.username}">@${ctx.from.username}</a>`
     : `<a href="tg://user?id=${ctx.from.id}">${userFullName || ctx.from.id}</a>`;
   const proofTime = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  const websiteHint =
+    pending.method === PADDLE_WEBSITE_LABEL
+      ? `⚠️ <b>Paddle website purchase.</b> Check it in the "New Paddle payment" DM or the Paddle dashboard (same plan, same email) before approving. Approving gives the main channel only.\n`
+      : "";
   const adminCaption =
     `🧾 <b>Payment Proof #${proof.id}</b>\n` +
     `${"─".repeat(28)}\n` +
@@ -1149,6 +1158,7 @@ bot.on("message:photo", async (ctx) => {
     `🌍 Region: ${plan.region.toUpperCase()}\n` +
     `🗣 Language: ${lang}\n` +
     `🕐 Time: ${proofTime}\n` +
+    websiteHint +
     `${"─".repeat(28)}\n` +
     `✅ Approve atau ❌ Reject di bawah:`;
   const adminKb = new InlineKeyboard()
@@ -1211,7 +1221,10 @@ bot.callbackQuery(/^admin:(approve|reject):(\d+)$/, async (ctx) => {
     .set({ status: "approved", reviewedAt: new Date() })
     .where(eq(paymentProofsTable.id, proofId));
 
-  const result = await grantSubscriptionAccess(Number(proof.telegramId), plan, proof.id);
+  // Website (Paddle) purchases match what the website sells: the main channel only.
+  const result = await grantSubscriptionAccess(Number(proof.telegramId), plan, proof.id, {
+    includeBonus: proof.method !== PADDLE_WEBSITE_LABEL,
+  });
 
   try { await ctx.answerCallbackQuery("Approved"); } catch (_) {}
   const bonusLine = result.bonusInviteLink ? `\n🎁 Bonus: ${result.bonusInviteLink}` : "";
@@ -1880,7 +1893,7 @@ bot.command("adduser", async (ctx) => {
   if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
 
   const args = ctx.match?.trim().split(/\s+/) ?? [];
-  const usage = `Penggunaan:\n<code>/adduser &lt;telegram_id&gt; &lt;region&gt; &lt;plan&gt;</code>\n\nRegion: <b>id</b> / <b>my</b> / <b>intl</b>\nPlan: <b>weekly</b> / <b>monthly</b> / <b>permanent</b>\n\nContoh:\n<code>/adduser 123456789 id monthly</code>`;
+  const usage = `Penggunaan:\n<code>/adduser &lt;telegram_id&gt; &lt;region&gt; &lt;plan&gt;</code>\n\nRegion: <b>id</b> / <b>my</b> / <b>intl</b>\nPlan: <b>weekly</b> / <b>monthly</b> / <b>permanent</b>\n\nContoh:\n<code>/adduser 123456789 id monthly</code>\n<code>/adduser 123456789 intl permanent nobonus</code> (pembeli website: tanpa channel bonus)`;
 
   if (args.length < 3) {
     await ctx.reply(usage, { parse_mode: "HTML" });
@@ -1888,6 +1901,8 @@ bot.command("adduser", async (ctx) => {
   }
 
   const [telegramIdStr, regionStr, planKeyStr] = args;
+  // Optional 4th word: website (Paddle) buyers get the main channel only.
+  const noBonus = (args[3] ?? "").toLowerCase() === "nobonus";
   const telegramId = Number(telegramIdStr);
 
   if (isNaN(telegramId) || telegramId <= 0) {
@@ -1960,7 +1975,7 @@ bot.command("adduser", async (ctx) => {
   }
 
   let bonusLine = "";
-  if (isBonusEligible(planKey)) {
+  if (isBonusEligible(planKey) && !noBonus) {
     const bonusInvite = await createBonusInviteLink(expiresAt, telegramId);
     if (bonusInvite) bonusLine = `\n🎁 <b>Bonus link:</b> ${bonusInvite}`;
   }

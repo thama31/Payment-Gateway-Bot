@@ -70,7 +70,7 @@ async function notifyAdminOfUnlinkedPayment(event: PaddleTransactionEvent): Prom
     lines.push(
       "",
       "No Telegram ID came with this payment, so access wasn't granted automatically. Once the buyer messages you, add them with:",
-      `<code>/adduser &lt;telegram_id&gt; intl ${planKey ?? "plan"}</code>`
+      `<code>/adduser &lt;telegram_id&gt; intl ${planKey ?? "plan"} nobonus</code>`
     );
   }
   await bot.api.sendMessage(ADMIN_ID, lines.join("\n"), { parse_mode: "HTML" });

@@ -52,7 +52,18 @@ export function fillPlanDetails(details: string, plan: Plan): string {
   return details.replace(/\{amount\}/g, amount);
 }
 
-export const PAYMENT_METHODS: Record<Region, { id: string; label: string; details: string }[]> = {
+export interface PaymentMethod {
+  id: string;
+  label: string;
+  details: string;
+  /** When set, the method is only offered for these plans. */
+  plans?: PlanKey[];
+}
+
+/** Label of the manual "pay on the website with Paddle" method. Its payment proofs are recognised by this label. */
+export const PADDLE_WEBSITE_LABEL = "💳 Card / Apple Pay / Google Pay (on website)";
+
+export const PAYMENT_METHODS: Record<Region, PaymentMethod[]> = {
   id: [
     {
       id: "qris",
@@ -71,9 +82,17 @@ export const PAYMENT_METHODS: Record<Region, { id: string; label: string; detail
   ],
   intl: [
     {
-      id: "paddle",
-      label: "💳 Card / Apple Pay / Google Pay",
-      details: "",
+      // Manual "Paddle on the website" option. The bot never sends a checkout
+      // link: the buyer is pointed to the Vault page on the website, pays there
+      // through Paddle, then sends the receipt here and the admin approves it,
+      // like PayPal. Lifetime only, because the website's Weekly and Monthly are
+      // auto-renewing Paddle subscriptions that this manual flow cannot keep in
+      // sync (access here would expire while Paddle keeps charging).
+      id: "paddle_web",
+      label: PADDLE_WEBSITE_LABEL,
+      plans: ["permanent"],
+      details:
+        "Pay on our website with Paddle:\n🔗 https://innominata.netlify.app/vault.html#plans\n\nChoose <b>Lifetime Access</b> ({amount} USD one-time, plus tax if applicable), accept the terms and pay with a card, Apple Pay or Google Pay.\n\n💰 The total shown at checkout includes tax for your country, so it can be higher than {amount} USD.\n\n✉️ Then send a screenshot of the Paddle receipt here (it shows your email, the amount and the date).\n\nℹ️ Website purchases include the main channel only. The bonus channel is not included.",
     },
     {
       // Manual, like Wise: the buyer pays via paypal.me, sends a screenshot,
