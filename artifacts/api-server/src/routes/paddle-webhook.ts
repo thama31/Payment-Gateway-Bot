@@ -67,11 +67,18 @@ async function notifyAdminOfUnlinkedPayment(event: PaddleTransactionEvent): Prom
   }
   lines.push(`🧾 Txn: <code>${escapeHtml(d.id)}</code>`);
   if (!isRenewal) {
-    lines.push(
-      "",
-      "No Telegram ID came with this payment, so access wasn't granted automatically. Once the buyer messages you, add them with:",
-      `<code>/adduser &lt;telegram_id&gt; intl ${planKey ?? "plan"} nobonus</code>`
-    );
+    if (planKey) {
+      lines.push(
+        "",
+        "No Telegram ID came with this payment, so access wasn't granted automatically. Once the buyer sends you the receipt (in the bot or by message), add them with:",
+        `<code>/adduser &lt;telegram_id&gt; intl ${planKey} nobonus</code>`
+      );
+    } else {
+      lines.push(
+        "",
+        "📚 This is not one of the Vault plans, so it is probably an ebook from the Catalog. Send the PDF to the buyer's email address."
+      );
+    }
   }
   await bot.api.sendMessage(ADMIN_ID, lines.join("\n"), { parse_mode: "HTML" });
 }
