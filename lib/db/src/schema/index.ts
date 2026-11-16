@@ -6,6 +6,7 @@ import {
   timestamp,
   varchar,
   boolean,
+  integer,
 } from "drizzle-orm/pg-core";
 
 export const usersTable = pgTable("users", {
@@ -58,4 +59,16 @@ export const previewAccessTable = pgTable("preview_access", {
 export type User = typeof usersTable.$inferSelect;
 export type Subscription = typeof subscriptionsTable.$inferSelect;
 export type PaymentProof = typeof paymentProofsTable.$inferSelect;
+export const starPaymentsTable = pgTable("star_payments", {
+  id: serial("id").primaryKey(),
+  chargeId: text("charge_id").notNull().unique(),
+  telegramId: bigint("telegram_id", { mode: "number" }).notNull(),
+  planId: text("plan_id").notNull(),
+  stars: integer("stars").notNull(),
+  paidAt: timestamp("paid_at").notNull().defaultNow(),
+  refunded: boolean("refunded").notNull().default(false),
+  refundedAt: timestamp("refunded_at"),
+});
+
 export type PreviewAccess = typeof previewAccessTable.$inferSelect;
+export type StarPayment = typeof starPaymentsTable.$inferSelect;

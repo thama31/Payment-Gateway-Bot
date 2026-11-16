@@ -100,6 +100,14 @@ export const PAYMENT_METHODS: Record<Region, PaymentMethod[]> = {
         "Pay on our website with Paddle:\n🔗 https://innominata.netlify.app/vault.html#plans\n\nChoose <b>{planName} Access</b> ({amount} USD for {duration}, one-time payment, plus tax if applicable), accept the terms and pay with a card, Apple Pay or Google Pay.\n\n💰 The total shown at checkout includes tax for your country, so it can be higher than {amount} USD.\n\n✉️ Your Paddle receipt (it shows your email, the amount and the date) is the proof to send.\n\nℹ️ Website purchases include the main channel only. The bonus channel is not included.",
     },
     {
+      // Telegram Stars: paid inside Telegram and verified by Telegram itself, so
+      // access is granted automatically (no screenshot, no approval). Only in
+      // the international menu; the Star amounts live in stars.ts.
+      id: "stars",
+      label: "⭐ Telegram Stars",
+      details: "",
+    },
+    {
       // Manual, like Wise: the buyer pays via paypal.me, sends a screenshot,
       // and the admin verifies and approves it.
       id: "paypal",

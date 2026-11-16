@@ -31,6 +31,12 @@ const id: Dict = {
     "⏰ <b>Masa preview kamu udah habis!</b>\n\nKamu udah otomatis dikeluarkan dari channel preview. Kalau kamu suka sama isinya, langsung JOIN channel utama sekarang biar akses full & nggak hilang lagi 🔥",
   preview_tutorial_warning:
     "⚠️ <b>PENTING — Baca Dulu Sebelum Join!</b>\n\nSebelum klik link channel trial, tonton tutorial singkat ini dulu ya.\n\nKalau channel-nya tidak muncul di Telegram kamu, tutorial di bawah ini mungkin bisa membantu mengatasinya.\n\n▶️ <b>Tonton Tutorialnya di Sini:</b>\n{url}\n\nSetelah menonton tutorial, klik lagi link channel trial-nya dan selamat menikmati! ❤️",
+  stars_intro:
+    "⭐ <b>Bayar dengan Telegram Stars</b>\n\n{plan}: <b>{stars} ⭐</b>\n\nTekan <b>Bayar</b> di invoice di bawah. Akses kamu aktif otomatis begitu pembayaran berhasil.",
+  stars_invoice_desc: "Akses ke channel privat: {duration}. Dibayar dengan Telegram Stars.",
+  paysupport_text:
+    "💬 <b>Bantuan pembayaran</b>\n\nAda masalah dengan pembayaran Telegram Stars? Chat admin di @INNOMINATA666 dan sertakan username Telegram serta waktu pembayaran kamu. Refund diurus oleh admin.",
+  stars_refunded_user: "↩️ Pembayaran Telegram Stars kamu ({stars} ⭐) sudah di-refund. Akses dari pembelian ini berakhir.",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Dukungan",
   btn_language: "🌐 Ubah Bahasa",
@@ -101,6 +107,12 @@ const en: Dict = {
     "⏰ <b>Your preview trial has ended!</b>\n\nYou've been automatically removed from the preview channel. If you liked what you saw, JOIN the main channel now for full access 🔥",
   preview_tutorial_warning:
     "⚠️ <b>IMPORTANT — Please Read Before Joining!</b>\n\nBefore clicking the trial channel link, please watch this short tutorial first.\n\nIf the channel doesn't appear on your Telegram, the tutorial below may help you fix the issue.\n\n▶️ <b>Watch the Tutorial Here:</b>\n{url}\n\nAfter watching the tutorial, click the trial channel link again and enjoy! ❤️",
+  stars_intro:
+    "⭐ <b>Pay with Telegram Stars</b>\n\n{plan}: <b>{stars} ⭐</b>\n\nTap <b>Pay</b> on the invoice below. Your access is activated automatically as soon as the payment goes through.",
+  stars_invoice_desc: "Access to the private channel: {duration}. Paid with Telegram Stars.",
+  paysupport_text:
+    "💬 <b>Payment support</b>\n\nProblem with a Telegram Stars payment? Message the admin at @INNOMINATA666 with your Telegram username and the time of the payment. Refunds are handled by the admin.",
+  stars_refunded_user: "↩️ Your Telegram Stars payment ({stars} ⭐) has been refunded. The access from this purchase ends.",
   btn_status: "📊 My Subscription",
   btn_help: "❓ Help & Support",
   btn_language: "🌐 Change Language",
@@ -171,6 +183,12 @@ const my: Dict = {
     "⏰ <b>Tempoh preview anda telah tamat!</b>\n\nAnda telah dikeluarkan secara automatik dari saluran preview. Jika anda suka apa yang anda lihat, JOIN saluran utama sekarang untuk akses penuh 🔥",
   preview_tutorial_warning:
     "⚠️ <b>PENTING — Baca Dahulu Sebelum Sertai!</b>\n\nSebelum klik pautan saluran percubaan, sila tonton tutorial ringkas ini dahulu.\n\nJika saluran tidak muncul di Telegram anda, tutorial di bawah mungkin dapat membantu menyelesaikan masalah tersebut.\n\n▶️ <b>Tonton Tutorial di Sini:</b>\n{url}\n\nSelepas menonton tutorial, klik semula pautan saluran percubaan dan nikmati! ❤️",
+  stars_intro:
+    "⭐ <b>Bayar dengan Telegram Stars</b>\n\n{plan}: <b>{stars} ⭐</b>\n\nTekan <b>Bayar</b> pada invois di bawah. Akses anda diaktifkan secara automatik sebaik sahaja pembayaran berjaya.",
+  stars_invoice_desc: "Akses ke saluran peribadi: {duration}. Dibayar dengan Telegram Stars.",
+  paysupport_text:
+    "💬 <b>Sokongan pembayaran</b>\n\nAda masalah dengan pembayaran Telegram Stars? Mesej admin di @INNOMINATA666 bersama nama pengguna Telegram dan masa pembayaran anda. Bayaran balik diuruskan oleh admin.",
+  stars_refunded_user: "↩️ Pembayaran Telegram Stars anda ({stars} ⭐) telah dikembalikan. Akses daripada pembelian ini berakhir.",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Sokongan",
   btn_language: "🌐 Tukar Bahasa",
@@ -241,6 +259,12 @@ const ar: Dict = {
     "⏰ <b>انتهت فترة المعاينة التجريبية الخاصة بك!</b>\n\nتمت إزالتك تلقائياً من قناة المعاينة. إذا أعجبك ما رأيته، انضم إلى القناة الرئيسية الآن للحصول على وصول كامل 🔥",
   preview_tutorial_warning:
     "⚠️ <b>مهم — يرجى القراءة قبل الانضمام!</b>\n\nقبل الضغط على رابط قناة التجربة، يرجى مشاهدة هذا الشرح القصير أولاً.\n\nإذا لم تظهر القناة في تيليجرام لديك، فقد يساعدك الشرح أدناه في حل المشكلة.\n\n▶️ <b>شاهد الشرح هنا:</b>\n{url}\n\nبعد مشاهدة الشرح، اضغط على رابط قناة التجربة مرة أخرى واستمتع! ❤️",
+  stars_intro:
+    "⭐ <b>ادفع بنجوم تيليجرام</b>\n\n{plan}: <b>{stars} ⭐</b>\n\nاضغط على <b>دفع</b> في الفاتورة أدناه. يتم تفعيل وصولك تلقائياً بمجرد نجاح الدفع.",
+  stars_invoice_desc: "الوصول إلى القناة الخاصة: {duration}. الدفع بنجوم تيليجرام.",
+  paysupport_text:
+    "💬 <b>دعم المدفوعات</b>\n\nهل لديك مشكلة في الدفع بنجوم تيليجرام؟ راسل المسؤول على @INNOMINATA666 مع اسم المستخدم ووقت الدفع. يتم التعامل مع المبالغ المستردة من قبل المسؤول.",
+  stars_refunded_user: "↩️ تم استرداد دفعتك بنجوم تيليجرام ({stars} ⭐). ينتهي الوصول المرتبط بهذه العملية.",
   btn_status: "📊 اشتراكي",
   btn_help: "❓ المساعدة والدعم",
   btn_language: "🌐 تغيير اللغة",
