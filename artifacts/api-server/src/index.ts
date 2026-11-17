@@ -65,17 +65,6 @@ async function initDatabase() {
         kicked boolean NOT NULL DEFAULT false,
         kicked_at timestamp
       );
-
-      CREATE TABLE IF NOT EXISTS public.star_payments (
-        id serial PRIMARY KEY,
-        charge_id text NOT NULL UNIQUE,
-        telegram_id bigint NOT NULL,
-        plan_id text NOT NULL,
-        stars integer NOT NULL,
-        paid_at timestamp NOT NULL DEFAULT now(),
-        refunded boolean NOT NULL DEFAULT false,
-        refunded_at timestamp
-      );
     `);
     logger.info("Database schema ready");
   } finally {

@@ -1,12 +1,11 @@
 import { Bot, InlineKeyboard, InputFile, type Context, session, type SessionFlavor, type StorageAdapter } from "grammy";
 import path from "node:path";
 import fs from "node:fs";
-import { db, pool, usersTable, subscriptionsTable, paymentProofsTable, previewAccessTable, starPaymentsTable, type PreviewAccess } from "@workspace/db";
+import { db, pool, usersTable, subscriptionsTable, paymentProofsTable, previewAccessTable, type PreviewAccess } from "@workspace/db";
 import { eq, and, desc, sql, gt, isNull, or, lte, inArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { LANGUAGES, t, type Lang } from "./i18n";
 import { PLANS, PAYMENT_METHODS, PADDLE_WEBSITE_LABEL, findPlanById, fillPlanDetails, type Region, type PlanKey, type Plan } from "./plans";
-import { STARS_METHOD_ID, buildStarsPayload, parseStarsPayload, isValidStarsCheckout, starsPriceFor } from "./stars";
 import { createPaddleCheckoutUrl, isPaddleConfigured } from "./paddle";
 import { syncUsersToSheet, appendUserRow, syncSubscribersToSheet, syncPaymentsToSheet, appendSubscriberRow, appendPaymentRow } from "./sheets";
 
@@ -915,13 +914,6 @@ bot.callbackQuery(/^pay:([^:]+):(.+)$/, async (ctx) => {
   if (!method) return ctx.answerCallbackQuery("Invalid method");
   if (method.plans && !method.plans.includes(plan.key)) return ctx.answerCallbackQuery("Invalid method");
   await ctx.answerCallbackQuery();
-
-  if (methodId === STARS_METHOD_ID) {
-    // Paid inside Telegram: no screenshot to wait for.
-    ctx.session.awaitingProofFor = null;
-    await sendStarsInvoice(ctx, lang, plan);
-    return;
-  }
 
   if (methodId === "paddle") {
     if (!ctx.from) return;
@@ -1835,192 +1827,6 @@ bot.callbackQuery(/^prevmem:(kick|timer)$/, async (ctx) => {
   })().catch((err) => logger.error({ err }, "Preview members action failed"));
 });
 
-// ---------------------------------------------------------------------------
-// Telegram Stars (XTR) payments
-//
-// Flow: the buyer taps "⭐ Telegram Stars" -> the bot sends a Stars invoice ->
-// Telegram asks us to confirm (pre_checkout_query, which must be answered
-// within 10 seconds) -> Telegram takes the Stars and sends a successful_payment
-// message -> we grant access automatically. Telegram itself verifies the
-// payment, so no screenshot or admin approval is needed.
-// ---------------------------------------------------------------------------
-// STARS_ADMIN_TEST=1 makes the ADMIN's own Stars invoices cost 1 Star, to test
-// the whole flow cheaply. It never changes what any other buyer pays.
-const starsOpts = { adminId: ADMIN_ID, adminTest: process.env["STARS_ADMIN_TEST"] === "1" };
-
-function escapeStarsHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-async function sendStarsInvoice(ctx: BotContext, lang: Lang, plan: Plan): Promise<void> {
-  if (!ctx.from) return;
-  const stars = starsPriceFor(plan.key, ctx.from.id, starsOpts);
-  const duration = plan.durationDays
-    ? t(lang, "duration_days", { days: String(plan.durationDays) })
-    : t(lang, "duration_permanent");
-  const name = planLabel(lang, plan.key);
-  const planText = plan.durationDays ? `${name} (${duration})` : name;
-  await ctx.editMessageText(t(lang, "stars_intro", { plan: planText, stars: stars.toLocaleString("en-US") }), {
-    parse_mode: "HTML",
-    reply_markup: new InlineKeyboard().text(t(lang, "btn_back"), "menu:main"),
-  });
-  // Stars invoices: currency "XTR", no provider token, exactly one price item.
-  await ctx.replyWithInvoice(
-    `Unlimited Fun - ${name}`.slice(0, 32),
-    t(lang, "stars_invoice_desc", { duration }).slice(0, 255),
-    buildStarsPayload(plan.id, ctx.from.id),
-    "XTR",
-    [{ label: name.slice(0, 32), amount: stars }]
-  );
-}
-
-// Must answer within 10 seconds, so no database work here.
-async function handleStarsPreCheckout(ctx: BotContext): Promise<void> {
-  const q = ctx.preCheckoutQuery;
-  if (!q) return;
-  const check = isValidStarsCheckout({
-    currency: q.currency,
-    totalAmount: q.total_amount,
-    payload: q.invoice_payload,
-    fromId: q.from.id,
-    ...starsOpts,
-  });
-  if (check.ok) {
-    await ctx.answerPreCheckoutQuery(true);
-  } else {
-    logger.warn({ reason: check.reason }, "Rejected a Stars pre-checkout");
-    await ctx.answerPreCheckoutQuery(false, "This payment can't be processed. Please start again from the bot menu.");
-  }
-}
-
-async function handleStarsPayment(ctx: BotContext): Promise<void> {
-  const pay = ctx.message?.successful_payment;
-  const from = ctx.from;
-  if (!pay || !from || pay.currency !== "XTR") return;
-
-  const who = from.username ? `@${from.username}` : escapeStarsHtml(from.first_name ?? String(from.id));
-  const chargeId = pay.telegram_payment_charge_id;
-  const parsed = parseStarsPayload(pay.invoice_payload);
-
-  // Record every Stars payment first (unique charge id): this makes a repeated
-  // delivery of the same message harmless, and lets /refund_stars find it.
-  const inserted = await db
-    .insert(starPaymentsTable)
-    .values({ chargeId, telegramId: from.id, planId: parsed?.plan.id ?? "unknown", stars: pay.total_amount })
-    .onConflictDoNothing()
-    .returning({ id: starPaymentsTable.id });
-  if (inserted.length === 0) return;
-  const rowId = inserted[0]!.id;
-
-  const check = isValidStarsCheckout({
-    currency: pay.currency,
-    totalAmount: pay.total_amount,
-    payload: pay.invoice_payload,
-    fromId: from.id,
-    ...starsOpts,
-  });
-  if (!check.ok) {
-    logger.error({ reason: check.reason, chargeId }, "Stars payment that does not match any plan");
-    await bot.api
-      .sendMessage(
-        ADMIN_ID,
-        `⚠️ <b>Stars payment that doesn't match any plan</b> (${check.reason})\n\n👤 ${who} (<code>${from.id}</code>)\n⭐ ${pay.total_amount}\n🧾 <code>${escapeStarsHtml(chargeId)}</code>\n\nNo access was granted. Refund it with <code>/refund_stars ${escapeStarsHtml(chargeId)}</code>, or add the user by hand with /adduser.`,
-        { parse_mode: "HTML" }
-      )
-      .catch(() => {});
-    return;
-  }
-
-  const plan = check.plan;
-  try {
-    const result = await grantSubscriptionAccess(from.id, plan, rowId);
-    await bot.api
-      .sendMessage(
-        ADMIN_ID,
-        `⭐ <b>Telegram Stars payment</b>\n\n👤 ${who} (<code>${from.id}</code>)\n📦 Plan: <b>${plan.key}</b> — ${pay.total_amount} ⭐\n🧾 <code>${escapeStarsHtml(chargeId)}</code>\n\nAccess was activated automatically.`,
-        { parse_mode: "HTML" }
-      )
-      .catch(() => {});
-    appendSubscriberRow({
-      telegramId: from.id,
-      username: from.username ?? null,
-      planId: plan.id,
-      region: plan.region,
-      status: "active",
-      startedAt: result.startedAt,
-      expiresAt: result.expiresAt,
-      method: "Telegram Stars",
-    }).catch(() => {});
-    appendPaymentRow({
-      id: rowId,
-      telegramId: from.id,
-      username: from.username ?? null,
-      planId: plan.id,
-      method: "Telegram Stars",
-      status: "approved",
-      createdAt: new Date(),
-      reviewedAt: new Date(),
-    }).catch(() => {});
-  } catch (err) {
-    logger.error({ err, chargeId }, "Stars payment received but granting access failed");
-    await bot.api
-      .sendMessage(
-        ADMIN_ID,
-        `🚨 <b>Stars payment received, but granting access FAILED</b>\n\n👤 ${who} (<code>${from.id}</code>)\n📦 Plan: <b>${plan.key}</b> — ${pay.total_amount} ⭐\n🧾 <code>${escapeStarsHtml(chargeId)}</code>\n\nAdd them by hand: <code>/adduser ${from.id} intl ${plan.key}</code>, or refund: <code>/refund_stars ${escapeStarsHtml(chargeId)}</code>`,
-        { parse_mode: "HTML" }
-      )
-      .catch(() => {});
-  }
-}
-
-async function handleRefundStars(ctx: BotContext): Promise<void> {
-  if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
-  const chargeId = String(ctx.match ?? "").trim();
-  if (!chargeId) {
-    await ctx.reply("Usage: <code>/refund_stars &lt;charge_id&gt;</code>\n\nThe charge id is in the ⭐ payment DM.", { parse_mode: "HTML" });
-    return;
-  }
-  const rows = await db.select().from(starPaymentsTable).where(eq(starPaymentsTable.chargeId, chargeId)).limit(1);
-  const row = rows[0];
-  if (!row) {
-    await ctx.reply("No Stars payment with that charge id.");
-    return;
-  }
-  if (row.refunded) {
-    await ctx.reply("That payment was already refunded.");
-    return;
-  }
-  try {
-    await bot.api.refundStarPayment(Number(row.telegramId), chargeId);
-  } catch (err) {
-    logger.error({ err, chargeId }, "Stars refund failed");
-    await ctx.reply("⚠️ Telegram refused the refund, see the logs.");
-    return;
-  }
-  await db.update(starPaymentsTable).set({ refunded: true, refundedAt: new Date() }).where(eq(starPaymentsTable.id, row.id));
-  try {
-    const userRow = await db.select().from(usersTable).where(eq(usersTable.telegramId, row.telegramId)).limit(1);
-    const lang = (userRow[0]?.language as Lang) ?? "id";
-    await bot.api.sendMessage(Number(row.telegramId), t(lang, "stars_refunded_user", { stars: String(row.stars) }));
-  } catch (err) {
-    logger.warn({ err }, "Couldn't tell the buyer about the Stars refund");
-  }
-  await ctx.reply(
-    `✅ Refunded ${row.stars} ⭐ to <code>${row.telegramId}</code>.\n\nAccess was NOT removed automatically: remove them from the channel(s) by hand.`,
-    { parse_mode: "HTML" }
-  );
-}
-
-bot.on("pre_checkout_query", handleStarsPreCheckout);
-bot.on("message:successful_payment", handleStarsPayment);
-bot.command("refund_stars", handleRefundStars);
-
-// Telegram requires bots that take Stars to answer /paysupport.
-bot.command("paysupport", async (ctx) => {
-  const lang = await getLang(ctx);
-  await ctx.reply(t(lang, "paysupport_text"), { parse_mode: "HTML" });
-});
-
 bot.command("broadcast", async (ctx) => {
   if (!ctx.from || ctx.from.id !== ADMIN_ID) return;
   ctx.session.awaitingBroadcast = true;
@@ -2227,7 +2033,7 @@ bot.catch((err) => {
 
 export function startBot() {
   bot.start({
-    allowed_updates: ["message", "callback_query", "chat_member", "channel_post", "pre_checkout_query"],
+    allowed_updates: ["message", "callback_query", "chat_member", "channel_post"],
     onStart: (info) => logger.info({ username: info.username }, "Telegram bot started"),
   }).catch((err) => logger.error({ err }, "Bot failed to start"));
 
