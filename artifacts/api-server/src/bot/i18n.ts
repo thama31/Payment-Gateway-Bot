@@ -10,7 +10,6 @@ export const LANGUAGES: { code: Lang; label: string; flag: string }[] = [
 type Dict = Record<string, string>;
 
 const id: Dict = {
-  preview_cta: "👀 Cek dulu isi channel-nya sebelum lanjut!",
   choose_language: "Selamat datang! Silakan pilih bahasa:",
   language_set: "Bahasa diatur ke Bahasa Indonesia.",
   main_menu:
@@ -21,16 +20,6 @@ const id: Dict = {
   questions_disclaimer:
     "⚠️ <b>BACA DULU SEBELUM CHAT ADMIN</b>\n\nAdmin <b>HANYA</b> merespons pertanyaan seputar <b>pembayaran dan langganan</b>.\n\n❌ Obrolan pribadi, request khusus, basa-basi, atau pertanyaan di luar topik <b>TIDAK AKAN DIBALAS</b> dan akan langsung diabaikan.\n\n✅ Kalau pertanyaan kamu memang soal pembayaran atau langganan, silakan lanjut di bawah 👇",
   btn_contact_admin: "💬 Lanjut ke Admin",
-  preview_granted:
-    "👁 <b>Ini link preview channel kamu!</b>\n\n🔗 {link}\n\n⏳ Begitu kamu join, akses preview berlaku <b>{duration}</b>. Setelah itu kamu otomatis dikeluarkan — buruan <b>JOIN channel utama</b> sebelum keduluan! 🔥",
-  preview_still_active:
-    "👁 Akses preview kamu masih aktif sampai <b>{expires}</b>.\n\nJangan lupa JOIN channel utama sebelum masa preview habis ya! 🔥",
-  preview_already_used:
-    "⏳ Masa trial preview kamu udah pernah dipakai dan sudah berakhir.\n\nLangsung JOIN channel utama aja biar akses full & nggak keputus-putus lagi 🔥",
-  preview_kicked_cta:
-    "⏰ <b>Masa preview kamu udah habis!</b>\n\nKamu udah otomatis dikeluarkan dari channel preview. Kalau kamu suka sama isinya, langsung JOIN channel utama sekarang biar akses full & nggak hilang lagi 🔥",
-  preview_tutorial_warning:
-    "⚠️ <b>PENTING — Baca Dulu Sebelum Join!</b>\n\nSebelum klik link channel trial, tonton tutorial singkat ini dulu ya.\n\nKalau channel-nya tidak muncul di Telegram kamu, tutorial di bawah ini mungkin bisa membantu mengatasinya.\n\n▶️ <b>Tonton Tutorialnya di Sini:</b>\n{url}\n\nSetelah menonton tutorial, klik lagi link channel trial-nya dan selamat menikmati! ❤️",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Dukungan",
   btn_language: "🌐 Ubah Bahasa",
@@ -80,7 +69,6 @@ const id: Dict = {
 };
 
 const en: Dict = {
-  preview_cta: "👀 Check out the channel before you continue!",
   choose_language: "Welcome! Please choose your language:",
   language_set: "Language set to English.",
   main_menu:
@@ -91,16 +79,6 @@ const en: Dict = {
   questions_disclaimer:
     "⚠️ <b>READ THIS BEFORE MESSAGING THE ADMIN</b>\n\nThe admin <b>ONLY</b> responds to questions about <b>payments and subscriptions</b>.\n\n❌ Personal chat, special requests, small talk, or anything off-topic <b>WILL NOT BE ANSWERED</b> and will be ignored.\n\n✅ If your question really is about payment or your subscription, continue below 👇",
   btn_contact_admin: "💬 Continue to Admin",
-  preview_granted:
-    "👁 <b>Here's your preview channel link!</b>\n\n🔗 {link}\n\n⏳ Once you join, your preview access lasts <b>{duration}</b>. After that you'll be automatically removed — JOIN the main channel before you lose access! 🔥",
-  preview_still_active:
-    "👁 Your preview access is still active until <b>{expires}</b>.\n\nDon't forget to JOIN the main channel before your preview ends! 🔥",
-  preview_already_used:
-    "⏳ Your preview trial has already been used and has ended.\n\nJOIN the main channel now for full, uninterrupted access 🔥",
-  preview_kicked_cta:
-    "⏰ <b>Your preview trial has ended!</b>\n\nYou've been automatically removed from the preview channel. If you liked what you saw, JOIN the main channel now for full access 🔥",
-  preview_tutorial_warning:
-    "⚠️ <b>IMPORTANT — Please Read Before Joining!</b>\n\nBefore clicking the trial channel link, please watch this short tutorial first.\n\nIf the channel doesn't appear on your Telegram, the tutorial below may help you fix the issue.\n\n▶️ <b>Watch the Tutorial Here:</b>\n{url}\n\nAfter watching the tutorial, click the trial channel link again and enjoy! ❤️",
   btn_status: "📊 My Subscription",
   btn_help: "❓ Help & Support",
   btn_language: "🌐 Change Language",
@@ -150,7 +128,6 @@ const en: Dict = {
 };
 
 const my: Dict = {
-  preview_cta: "👀 Lihat dulu saluran sebelum teruskan!",
   choose_language: "Selamat datang! Sila pilih bahasa anda:",
   language_set: "Bahasa ditetapkan ke Bahasa Melayu.",
   main_menu:
@@ -161,16 +138,6 @@ const my: Dict = {
   questions_disclaimer:
     "⚠️ <b>BACA DULU SEBELUM HUBUNGI ADMIN</b>\n\nAdmin <b>HANYA</b> menjawab pertanyaan berkaitan <b>pembayaran dan langganan</b>.\n\n❌ Sembang peribadi, permintaan khas, borak kosong, atau soalan di luar topik <b>TIDAK AKAN DIBALAS</b> dan akan terus diabaikan.\n\n✅ Kalau soalan anda memang mengenai pembayaran atau langganan, sila teruskan di bawah 👇",
   btn_contact_admin: "💬 Teruskan ke Admin",
-  preview_granted:
-    "👁 <b>Ini pautan saluran preview anda!</b>\n\n🔗 {link}\n\n⏳ Sebaik sahaja anda menyertai, akses preview berlangsung <b>{duration}</b>. Selepas itu anda akan dikeluarkan secara automatik — JOIN saluran utama sebelum terlepas! 🔥",
-  preview_still_active:
-    "👁 Akses preview anda masih aktif sehingga <b>{expires}</b>.\n\nJangan lupa JOIN saluran utama sebelum tempoh preview tamat! 🔥",
-  preview_already_used:
-    "⏳ Tempoh percubaan preview anda sudah digunakan dan telah tamat.\n\nJOIN saluran utama sekarang untuk akses penuh tanpa gangguan 🔥",
-  preview_kicked_cta:
-    "⏰ <b>Tempoh preview anda telah tamat!</b>\n\nAnda telah dikeluarkan secara automatik dari saluran preview. Jika anda suka apa yang anda lihat, JOIN saluran utama sekarang untuk akses penuh 🔥",
-  preview_tutorial_warning:
-    "⚠️ <b>PENTING — Baca Dahulu Sebelum Sertai!</b>\n\nSebelum klik pautan saluran percubaan, sila tonton tutorial ringkas ini dahulu.\n\nJika saluran tidak muncul di Telegram anda, tutorial di bawah mungkin dapat membantu menyelesaikan masalah tersebut.\n\n▶️ <b>Tonton Tutorial di Sini:</b>\n{url}\n\nSelepas menonton tutorial, klik semula pautan saluran percubaan dan nikmati! ❤️",
   btn_status: "📊 Status Langganan",
   btn_help: "❓ Bantuan & Sokongan",
   btn_language: "🌐 Tukar Bahasa",
@@ -220,7 +187,6 @@ const my: Dict = {
 };
 
 const ar: Dict = {
-  preview_cta: "👀 اطّلع على القناة أولاً قبل المتابعة!",
   choose_language: "مرحباً! يرجى اختيار اللغة:",
   language_set: "تم تعيين اللغة إلى العربية.",
   main_menu:
@@ -231,16 +197,6 @@ const ar: Dict = {
   questions_disclaimer:
     "⚠️ <b>اقرأ هذا قبل مراسلة المسؤول</b>\n\nالمسؤول يرد <b>فقط</b> على الأسئلة المتعلقة بـ<b>الدفع والاشتراك</b>.\n\n❌ المحادثات الشخصية أو الطلبات الخاصة أو الأحاديث الجانبية أو أي شيء خارج الموضوع <b>لن يتم الرد عليه</b> وسيتم تجاهله.\n\n✅ إذا كان سؤالك فعلاً عن الدفع أو اشتراكك، تابع بالأسفل 👇",
   btn_contact_admin: "💬 المتابعة إلى المسؤول",
-  preview_granted:
-    "👁 <b>إليك رابط قناة المعاينة الخاصة بك!</b>\n\n🔗 {link}\n\n⏳ بمجرد انضمامك، يستمر وصول المعاينة لمدة <b>{duration}</b>. بعد ذلك سيتم إزالتك تلقائياً — انضم إلى القناة الرئيسية قبل أن تفقد الوصول! 🔥",
-  preview_still_active:
-    "👁 لا يزال وصول المعاينة الخاص بك نشطاً حتى <b>{expires}</b>.\n\nلا تنسَ الانضمام إلى القناة الرئيسية قبل انتهاء فترة المعاينة! 🔥",
-  preview_already_used:
-    "⏳ لقد استخدمت بالفعل فترة المعاينة التجريبية وانتهت.\n\nانضم إلى القناة الرئيسية الآن للحصول على وصول كامل دون انقطاع 🔥",
-  preview_kicked_cta:
-    "⏰ <b>انتهت فترة المعاينة التجريبية الخاصة بك!</b>\n\nتمت إزالتك تلقائياً من قناة المعاينة. إذا أعجبك ما رأيته، انضم إلى القناة الرئيسية الآن للحصول على وصول كامل 🔥",
-  preview_tutorial_warning:
-    "⚠️ <b>مهم — يرجى القراءة قبل الانضمام!</b>\n\nقبل الضغط على رابط قناة التجربة، يرجى مشاهدة هذا الشرح القصير أولاً.\n\nإذا لم تظهر القناة في تيليجرام لديك، فقد يساعدك الشرح أدناه في حل المشكلة.\n\n▶️ <b>شاهد الشرح هنا:</b>\n{url}\n\nبعد مشاهدة الشرح، اضغط على رابط قناة التجربة مرة أخرى واستمتع! ❤️",
   btn_status: "📊 اشتراكي",
   btn_help: "❓ المساعدة والدعم",
   btn_language: "🌐 تغيير اللغة",
